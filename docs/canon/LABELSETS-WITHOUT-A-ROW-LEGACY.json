@@ -59,11 +59,6 @@
       "candidate": "18 candidate(s)",
       "members": 4
     },
-    "showLibraryMenuItem": {
-      "verdict": "namespace",
-      "candidate": "Localizable.strings Library#acc via #acc",
-      "members": 10
-    },
     "showMixerMenuItem": {
       "verdict": "ambiguous",
       "candidate": "2 candidate(s)",
@@ -84,20 +79,10 @@
       "candidate": "5 candidate(s)",
       "members": 2
     },
-    "trackContentExplicit": {
-      "verdict": "no-row",
-      "candidate": "0 candidate(s)",
-      "members": 7
-    },
     "trackContentGeneric": {
       "verdict": "ambiguous",
       "candidate": "3 candidate(s)",
       "members": 3
-    },
-    "trackHeadersDescription": {
-      "verdict": "no-row",
-      "candidate": "0 candidate(s)",
-      "members": 7
     },
     "trackTypeAux": {
       "verdict": "no-row",
@@ -123,11 +108,6 @@
       "verdict": "namespace",
       "candidate": "Localizable.strings Loop Browser#acc via #acc",
       "members": 12
-    },
-    "transportRecordArmExclusion": {
-      "verdict": "ambiguous",
-      "candidate": "3 candidate(s)",
-      "members": 2
     },
     "transportSliderHints": {
       "verdict": "namespace",
