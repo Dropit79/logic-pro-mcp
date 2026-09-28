@@ -1337,14 +1337,16 @@ enum AXLocalePolicy {
     /// variants: they may be load-bearing on a shipped path, and removing a matcher on a
     /// fail-closed delete without measuring first is the more dangerous edit of the two.
     ///
-    /// What is true: the English forms are live-measured. Where `삭제` and `削除` came from is not
-    /// recorded anywhere, which is exactly what `docs/locale/ui-labels.json`'s `measured` blocks
-    /// exist to make visible — both are counted there as variants with no reading behind them.
-    /// A locale whose form is genuinely absent still degrades to fail-closed structural matching;
-    /// a wrong-title guess or keyboard fallback is never fabricated.
+    /// What is true: the English forms are live-measured. Every other member is a value of one of
+    /// the two rows this set names in `derivedFrom` and `alsoDerivedFrom` (#904) -- `삭제` and `削除`
+    /// included, which are Apple's Korean and Japanese for the plain `Delete` row. Issue545's tests
+    /// record those two as read off live sheets on 2026-08-17, with no observation record behind the
+    /// reading; no other language has been read off a sheet. A locale whose form is genuinely absent
+    /// still degrades to fail-closed structural matching; a wrong-title guess or keyboard fallback is
+    /// never fabricated.
     static let deleteTracksPrimaryButton = LabelSet(
         canonical: "Delete Tracks and Content",
-        variants: ["Delete", "삭제", "削除"],
+        variants: ["Delete", "삭제", "削除", "트랙 및 콘텐츠 삭제", "トラックとコンテンツを削除", "Spuren und Inhalte löschen", "Eliminar pistas y contenido", "Supprimer les pistes et le contenu", "Elimina tracce e contenuti", "Apagar as Pistas e o Conteúdo", "删除轨道和内容", "刪除音軌和內容", "Löschen", "Eliminar", "Supprimer", "Elimina", "Apagar", "删除", "刪除"],
         rationale: """
         Primary destructive button on a track-delete confirm sheet; the reconciler presses only the \
         classifier-bound AX element. Logic uses more than one of these sheets and they do NOT share a \
@@ -1356,8 +1358,23 @@ enum AXLocalePolicy {
         because `decide` only confirms a delete when `isDeleteContext` is true and preflight never acts \
         on `.deleteConfirm` at all.
 
-        NOT MEASURED: the KO and JA forms of this bare button. A revision of this set carried 삭제 and         削除, which were translated by hand rather than read from the live sheet — the one thing the         header of this file forbids, and forbids because a hand translation was already wrong here once         (New is 신규, not the 새로 만들기 a translator reaches for). Outside English the bare-label         sheets therefore still classify as unknown, which is the pre-#545 behaviour: fail-closed, dialog         left on screen. That is a real remaining gap, tracked with the other locale work in #519, and it         is stated rather than papered over with a guess that would silently press an unidentified         destructive button.
-        """
+        NOT MEASURED on record outside English. A revision of this set carried 삭제 and 削除 translated by hand \
+        rather than read from the live sheet — the one thing the header of this file forbids, and \
+        forbids because a hand translation was already wrong here once (New is 신규, not the 새로 만들기 \
+        a translator reaches for). Since 2026-09-28 every non-English member is a value of one of the \
+        two rows this set names, read out of Logic's own tables rather than typed: \
+        DeleteChannelStrips.strings 30.title for the channel-strip sheet's button, and the plain \
+        `Delete` row of Logic.framework's Localizable.strings, the table the Regions and Cells alerts' \
+        own text is in, for the bare one. Which row that bare button reads is not identified; the other \
+        English `Delete` titles in Logic's tables agree with this one in all ten locales except one \
+        Portuguese dialog title and the `#key` and `#und` namespaces. Issue545DeleteConfirmBareLabelTests \
+        says the Korean and Japanese forms were read off live sheets on 2026-08-17; no observation \
+        record carries that reading. No German, Spanish, French, Italian, Portuguese or Chinese sheet \
+        has been read, so in those languages a delete sheet now classifies as a delete confirmation \
+        on Apple's word rather than on a reading (#904).
+        """,
+        derivedFrom: "logic-canon://nibstrings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FDeleteChannelStrips.strings/en/30.title#value",
+        alsoDerivedFrom: ["logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/Delete#value"]
     )
 
     static let saveConfirmationButton = LabelSet(
@@ -1863,6 +1880,8 @@ enum AXLocalePolicy {
         canonical: "write",
         variants: ["쓰기"],
         rationale: "Classifies the track-header automation mode as Write; read-only classifier."
+            + " Extended on 2026-09-28 to every locale Logic ships by reading the row Apple keys this control keyed `Write` in MAMixer.framework's Localizable.strings, the table whose `automation` row gates this read through automationModeContext; the strings this label already carried are each one of that row's own values or a tolerance spelling kept beside them, so nothing measured was dropped and nothing was typed. `AllTracksToWriteMode.strings 32.title` also reads Write in English and differs in French and Traditional Chinese; it is a choice in the All Tracks To Write Mode dialog, a different control, so its values are not carried. Checked offline by Scripts/check-labelsets-are-derived.py.",
+        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FMAMixer.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/Write#value"
     )
     static let automationModeTrim = LabelSet(
         canonical: "trim",
@@ -1873,6 +1892,8 @@ enum AXLocalePolicy {
         canonical: "touch",
         variants: ["터치"],
         rationale: "Classifies the track-header automation mode as Touch; read-only classifier."
+            + " Extended on 2026-09-28 to every locale Logic ships by reading the row Apple keys this control keyed `Touch` in MAMixer.framework's Localizable.strings, the table whose `automation` row gates this read through automationModeContext; the strings this label already carried are each one of that row's own values or a tolerance spelling kept beside them, so nothing measured was dropped and nothing was typed. `AllTracksToWriteMode.strings 30.title` also reads Touch in English and differs in French; it is a choice in the All Tracks To Write Mode dialog, a different control, so its values are not carried. Checked offline by Scripts/check-labelsets-are-derived.py.",
+        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FMAMixer.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/Touch#value"
     )
     static let automationModeLatch = LabelSet(
         canonical: "latch",
@@ -1885,11 +1906,15 @@ enum AXLocalePolicy {
         canonical: "read",
         variants: ["읽기"],
         rationale: "Classifies the track-header automation mode as Read; read-only classifier."
+            + " Extended on 2026-09-28 to every locale Logic ships by reading the row Apple keys this control keyed `Read` in MAMixer.framework's Localizable.strings, the table whose `automation` row gates this read through automationModeContext; the strings this label already carried are each one of that row's own values or a tolerance spelling kept beside them, so nothing measured was dropped and nothing was typed. Checked offline by Scripts/check-labelsets-are-derived.py.",
+        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FMAMixer.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/Read#value"
     )
     static let automationModeOff = LabelSet(
         canonical: "off",
-        variants: ["끔", "オフ"],
+        variants: ["끔", "オフ", "Aus", "Desactivado", "Non", "Non attiva", "Desativado", "关", "關閉"],
         rationale: "Classifies an explicit track-header automation Off token; read-only classifier. Japanese added 2026-09-07 by aligning the en-US and ja-JP navigation-free censuses of 2026-09-05 (#795): 1005 of 1031 rows align as matching blocks, and this label's element was read at the inspector track outline's automation popup."
+            + " Extended on 2026-09-28 to every locale Logic ships by reading the row Apple keys this control keyed `Off` in MAMixer.framework's Localizable.strings, the table whose `automation` row gates this read through automationModeContext; the strings this label already carried are each one of that row's own values or a tolerance spelling kept beside them, so nothing measured was dropped and nothing was typed. MAMixer's `MixerSendOff` holds the same ten values. The consumer compares whole tokens, so the two-word Italian value reaches it through its first word, which is also the French value. Checked offline by Scripts/check-labelsets-are-derived.py.",
+        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FMAMixer.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/Off#value"
     )
 
     // --- Plugin Setting popup locator (read-only, `.contains`) ---
@@ -2218,13 +2243,15 @@ enum AXLocalePolicy {
     )
 
     /// The measured Controls item in the scoped plugin-window View menu.
-    /// `Controls` and `컨트롤` were measured live on 2026-09-02; this is not a
-    /// translation table for unmeasured locales and is never used as a title
-    /// readback.
+    /// `Controls` and `컨트롤` were measured live on 2026-09-02. The other locales are
+    /// the values of the MAToolKit row it names (#904), not readings, and the set is
+    /// never used as a title readback.
     static let pluginWindowControlsViewMenuItem = LabelSet(
         canonical: "Controls",
-        variants: ["컨트롤"],
+        variants: ["컨트롤", "コントロール", "Regler", "Controles", "Commandes", "Controlli", "控制"],
         rationale: "Measured live on 2026-09-02 in Compressor's scoped View menu; use to select Controls only."
+            + " Extended on 2026-09-28 to every locale Logic ships by reading the row Apple keys this control keyed `PluginWindow_Controls` in MAToolKit.framework's Localizable.strings, the plug-in window's own namespace; the strings this label already carried are each one of that row's own values or a tolerance spelling kept beside them, so nothing measured was dropped and nothing was typed. The plug-in window header this menu belongs to is MAToolKit's (see pluginEditorBypassControl), and MAToolKitHighLevel carries the same ten values; Logic.framework's plain `Controls` row differs in Japanese, German and Traditional Chinese and is not keyed to the plug-in window. Checked offline by Scripts/check-labelsets-are-derived.py.",
+        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FMAToolKit.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/PluginWindow_Controls#value"
     )
 
     /// The measured native-editor item in the scoped plugin-window View menu.
@@ -2243,13 +2270,16 @@ enum AXLocalePolicy {
     /// the `isSmartControlsWindow` signature that classifies that pane as
     /// NON-blocking (it is tagged AXDialog but, unlike a plugin editor, carries no
     /// close-button attribute, so the plugin-editor signature never matched it).
-    /// English canonical only: the localized "Smart Controls" label is UNVERIFIED
-    /// (OQ-1), so `variants` stays empty and non-EN panes conservatively remain
-    /// BLOCKING (fail-closed) rather than risk excluding a real modal.
+    /// Until #904 this was English only (OQ-1: the localized label was unverified), so
+    /// non-English panes stayed BLOCKING, fail-closed. It now carries the ten values of
+    /// Apple's `Smart Controls#acc` row, so a pane in any language Logic ships matches on
+    /// Apple's word. No non-English pane has been read live.
     static let pluginWindowSmartControlsControl = LabelSet(
         canonical: "smart controls",
-        variants: [],
-        rationale: "Locates the Smart Controls toggle in a Drummer track's docked Smart Controls pane for the non-blocking classifier; English canonical only (OQ-1: localized label unverified → non-EN panes stay blocking, fail-closed). Read-only classifier."
+        variants: ["Smart Controls", "Smart Control", "智能控制", "智慧型控制項目"],
+        rationale: "Locates the Smart Controls toggle in a Drummer track's docked Smart Controls pane for the non-blocking classifier; read-only classifier. Until 2026-09-28 English only (OQ-1: the localized label was unverified, so non-English panes stayed blocking, fail-closed)."
+            + " Extended on 2026-09-28 to every locale Logic ships by reading the row Apple keys this control keyed `Smart Controls#acc` in Apple's own accessibility namespace, the namespace an accessibility name comes from; the strings this label already carried are each one of that row's own values or a tolerance spelling kept beside them, so nothing measured was dropped and nothing was typed. German, Spanish, French and Portuguese ship the English name, so those panes already matched the canonical. Korean ships it with a no-break space between the words, which the exact match does not fold, so Korean, Japanese, Italian and both Chinese now match on Apple's value instead of staying blocking. Checked offline by Scripts/check-labelsets-are-derived.py.",
+        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/Smart%20Controls%23acc#value"
     )
 
     /// Automation-mode labels that must NOT be read as a plugin display name.
@@ -2321,8 +2351,10 @@ enum AXLocalePolicy {
     /// State-A success.
     static let trackTypeGMDevice = LabelSet(
         canonical: "gm device",
-        variants: [],
+        variants: ["GM 기기", "GMデバイス", "GM-Gerät", "Dispositivo GM", "Appareil GM", "通用 MIDI 设备", "GM 裝置"],
         rationale: "Classifies a GM Device external-MIDI strip; MUST win over .audio (#131 silent-bounce guard); read-only."
+            + " Extended on 2026-09-28 to every locale Logic ships by reading the row Apple keys this control keyed `GM Device` in Logic.framework's Localizable.strings; the strings this label already carried are each one of that row's own values or a tolerance spelling kept beside them, so nothing measured was dropped and nothing was typed. `GMDevice.strings 5.title` also reads GM Device in English; it titles the GM device editor's window and differs in French, so it is not this header's word. Checked offline by Scripts/check-labelsets-are-derived.py.",
+        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/GM%20Device#value"
     )
     static let trackTypeAudio = LabelSet(
         canonical: "audio",
@@ -2345,8 +2377,10 @@ enum AXLocalePolicy {
     )
     static let trackTypeExternalMIDI = LabelSet(
         canonical: "external",
-        variants: ["midi"],
+        variants: ["midi", "External MIDI", "외부 MIDI", "外部MIDI", "Externes MIDI", "MIDI externo", "MIDI externe", "MIDI esterno", "外部 MIDI"],
         rationale: "Classifies an external-MIDI track; read-only classifier."
+            + " Extended on 2026-09-28 to every locale Logic ships by reading the row Apple keys this control keyed `External MIDI` in Logic.framework's Localizable.strings; the strings this label already carried are each one of that row's own values or a tolerance spelling kept beside them, so nothing measured was dropped and nothing was typed. Every value carries MIDI, which this set already matched by containment, so the classifier's answer does not move. Portuguese differs from Spanish only in case and is carried once. Checked offline by Scripts/check-labelsets-are-derived.py.",
+        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/External%20MIDI#value"
     )
     static let trackTypeAux = LabelSet(
         canonical: "aux",
@@ -2467,6 +2501,8 @@ enum AXLocalePolicy {
         canonical: "midi",
         variants: [],
         rationale: "Classifies a region as MIDI content; read-only."
+            + " Extended on 2026-09-28 to every locale Logic ships by reading the row Apple keys this control keyed `MIDI` in Logic.framework's Localizable.strings; the strings this label already carried are each one of that row's own values or a tolerance spelling kept beside them, so nothing measured was dropped and nothing was typed. The value is MIDI in every locale, so no member was added; the row is what now says so. Checked offline by Scripts/check-labelsets-are-derived.py.",
+        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/MIDI#value"
     )
     static let regionKindAudio = LabelSet(
         canonical: "audio",
@@ -2693,8 +2729,10 @@ enum AXLocalePolicy {
     /// confident wrong answer on every drummer track.
     static let midiEffectSlotHelpKeyword = LabelSet(
         canonical: "midi effect slot",
-        variants: [],
+        variants: ["MIDI 이펙트 슬롯", "MIDIエフェクトスロット", "MIDI-Effekt-Slot", "Ranura de efectos MIDI", "Slot d’effet MIDI", "MIDI 效果插槽"],
         rationale: "Detects a channel strip's MIDI effect slot by its AXHelp string; read-only classifier."
+            + " Widened on 2026-09-28 to every locale Logic ships by reading the QuickHelp row whose Title is the help's first sentence, as inputSlotHelpKeyword does; it, pt and zh_TW keep the English title, and the French title's trailing no-break space is not carried, as the input slot's was not. Checked offline by Scripts/check-labelsets-are-derived.py.",
+        derivedFrom: "logic-canon://quickhelp/QuickHelp/en/INS_086_MidiSlot#Title"
     )
 
     /// The inspector's channel strip for the SELECTED track: an `AXLayoutItem` whose help BEGINS
@@ -2715,8 +2753,10 @@ enum AXLocalePolicy {
     /// translation of the English one and could not have been derived from it.
     static let inspectorChannelStripHelpPrefix = LabelSet(
         canonical: "left inspector channel strip",
-        variants: ["왼쪽 인스펙터 채널 스트립", "インスペクタの左チャンネルストリップ"],
+        variants: ["왼쪽 인스펙터 채널 스트립", "インスペクタの左チャンネルストリップ", "Linkes Informationsfenster für Channel-Strip", "Canal de inspector izquierdo", "Tranche de console d’inspecteur gauche", "左检查器通道条"],
         rationale: "Identifies the inspector's channel strip for the selected track; read-only locator. Matched as a PREFIX: the right inspector strip's help contains the left strip's phrase in a later sentence (ko-KR census 2026-09-05), so a substring match selects the wrong element."
+            + " Widened on 2026-09-28 to every locale Logic ships by reading the QuickHelp row whose Title is the help's first sentence; the Korean and Japanese members read live are that row's values, and it, pt and zh_TW keep the English title, and the French title's trailing no-break space is not carried, as the input slot's was not. Checked offline by Scripts/check-labelsets-are-derived.py.",
+        derivedFrom: "logic-canon://quickhelp/QuickHelp/en/INS_005_LeftArrangeCS#Title"
     )
 
     /// en measured 2026-09-09 on an `create_external_midi` track (`Off 1`): its strip has NO

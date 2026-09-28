@@ -285,3 +285,230 @@ struct Issue904DerivedRowsTests {
         #expect(!AXLocalePolicy.undoPluginInsertMenuItem.containsAny(in: "Undo Channel-Strip einfügen"))
     }
 }
+
+/// #904, second pass: twelve more LabelSets from the census name the row that is the control's own
+/// word. Every locale string below was written into this file by a script from the value
+/// `Scripts/logic_canon.py resolve` returns for the row named -- none is typed -- and each test
+/// drives the consumer the set actually has, with a value only the derived row supplies.
+@Suite("#904 twelve legacy LabelSets derive from their row")
+struct Issue904LegacyDerivedRowsTests {
+    private static let logicStrings =
+        "logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/"
+    private static let mixerStrings =
+        "logic-canon://strings/Contents%2FFrameworks%2FMAMixer.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/"
+
+    // MARK: - The row each set names
+
+    /// Mutation that turns this red: change `Off#value` to `MixerSendOff#value` in
+    /// automationModeOff's `derivedFrom`. MAMixer carries both rows with the same ten values, so
+    /// the derived guard accepts either; only this comparison tells the plain row from the send's.
+    @Test("each of the twelve names exactly the row the census review chose")
+    func derivedFromNamesTheRow() throws {
+        let rows: [(String, AXLocalePolicy.LabelSet, String)] = [
+            ("automationModeWrite", AXLocalePolicy.automationModeWrite, Self.mixerStrings + "Write#value"),
+            ("automationModeTouch", AXLocalePolicy.automationModeTouch, Self.mixerStrings + "Touch#value"),
+            ("automationModeRead", AXLocalePolicy.automationModeRead, Self.mixerStrings + "Read#value"),
+            ("automationModeOff", AXLocalePolicy.automationModeOff, Self.mixerStrings + "Off#value"),
+            // English value: Controls
+            ("pluginWindowControlsViewMenuItem", AXLocalePolicy.pluginWindowControlsViewMenuItem,
+             "logic-canon://strings/Contents%2FFrameworks%2FMAToolKit.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/PluginWindow_Controls#value"),
+            ("pluginWindowSmartControlsControl", AXLocalePolicy.pluginWindowSmartControlsControl,
+             Self.logicStrings + "Smart%20Controls%23acc#value"),
+            ("trackTypeExternalMIDI", AXLocalePolicy.trackTypeExternalMIDI, Self.logicStrings + "External%20MIDI#value"),
+            ("trackTypeGMDevice", AXLocalePolicy.trackTypeGMDevice, Self.logicStrings + "GM%20Device#value"),
+            ("regionKindMidi", AXLocalePolicy.regionKindMidi, Self.logicStrings + "MIDI#value"),
+            // English value: MIDI Effect slot
+            ("midiEffectSlotHelpKeyword", AXLocalePolicy.midiEffectSlotHelpKeyword,
+             "logic-canon://quickhelp/QuickHelp/en/INS_086_MidiSlot#Title"),
+            // English value: Left inspector channel strip
+            ("inspectorChannelStripHelpPrefix", AXLocalePolicy.inspectorChannelStripHelpPrefix,
+             "logic-canon://quickhelp/QuickHelp/en/INS_005_LeftArrangeCS#Title"),
+            // English value: Delete Tracks and Content
+            ("deleteTracksPrimaryButton", AXLocalePolicy.deleteTracksPrimaryButton,
+             "logic-canon://nibstrings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FDeleteChannelStrips.strings/en/30.title#value"),
+        ]
+        #expect(rows.count == 12)
+        for (name, set, expected) in rows {
+            let ref = try #require(set.derivedFrom, "\(name) names no row")
+            #expect(ref == expected, "\(name) names \(ref)")
+        }
+        #expect(AXLocalePolicy.deleteTracksPrimaryButton.alsoDerivedFrom == [Self.logicStrings + "Delete#value"])
+    }
+
+    // MARK: - Automation mode: whole tokens of the gated header group
+
+    private func automationMode(value: String) -> AutomationMode? {
+        let builder = FakeAXRuntimeBuilder()
+        let header = builder.element(9800)
+        let group = builder.element(9801)
+        builder.setChildren(header, [group])
+        builder.setAttribute(group, kAXRoleAttribute as String, kAXGroupRole as String)
+        builder.setAttribute(group, kAXDescriptionAttribute as String, "Automation")
+        builder.setAttribute(group, kAXValueAttribute as String, value)
+        return AXValueExtractors.extractTrackAutomationModeIfReadable(from: header, runtime: builder.makeAXRuntime())
+    }
+
+    /// Mutation that turns this red: remove the German value of MAMixer's `Off` row from
+    /// automationModeOff's variants. The reader splits the gated group's value into tokens and
+    /// asks for a whole-token match, and `nil` -- not `.off` -- is what it returns when no mode
+    /// matches, so the German case cannot pass by falling back to the default. The Italian value
+    /// is two words and reaches the reader through its first, which is also the French value; the
+    /// mutation that turns that line red is removing the French value.
+    @Test("a header whose automation group reads Off in German, Italian or Traditional Chinese reads .off")
+    func automationOffTokenClass() {
+        #expect(automationMode(value: "Aus") == .off)
+        #expect(automationMode(value: "Non attiva") == .off)
+        #expect(automationMode(value: "關閉") == .off)
+        #expect(automationMode(value: "Automation") == nil)
+    }
+
+    // MARK: - Track type: containment over the header aggregate
+
+    /// Mutation that turns this red: remove the German value of Logic's `GM Device` row from
+    /// trackTypeGMDevice's variants. The German value carries no `MIDI`, so no other track-type
+    /// set can claim the header and the answer without it is `.unknown`, not a different type.
+    @Test("a header whose icon carries the German GM Device value classifies as external MIDI")
+    func gmDeviceHeaderClass() {
+        let builder = FakeAXRuntimeBuilder()
+        let header = builder.element(9810)
+        let name = builder.element(9811)
+        let icon = builder.element(9812)
+        builder.setChildren(header, [name, icon])
+        builder.setAttribute(header, kAXDescriptionAttribute as String, "1 ‘Piano’")
+        builder.setAttribute(name, kAXRoleAttribute as String, kAXStaticTextRole as String)
+        builder.setAttribute(name, kAXValueAttribute as String, "Piano")
+        builder.setAttribute(icon, kAXDescriptionAttribute as String, "GM-Gerät")
+
+        let track = AXValueExtractors.extractTrackState(from: header, index: 0, runtime: builder.makeAXRuntime())
+        #expect(track.type == .externalMIDI)
+    }
+
+    // MARK: - Mixer strip: the help strings of its slots
+
+    /// Mutation that turns this red: remove the German value of the `INS_086_MidiSlot` QuickHelp
+    /// title from midiEffectSlotHelpKeyword's variants. The strip reading counts its signals and
+    /// answers only when exactly one fires, so without the member the German strip is
+    /// `.undetermined`. The French line feeds Apple's title as it ships, trailing no-break space
+    /// and all, and the trimmed member is found inside it.
+    @Test("a strip whose MIDI effect slot help is German or French reads as the instrument family")
+    func midiEffectSlotClass() {
+        #expect(AXLogicProElements.reading(fromSlotKinds: ["MIDI-Effekt-Slot"]) == .instrumentFamily)
+        #expect(AXLogicProElements.reading(fromSlotKinds: ["Slot d’effet MIDI\u{00A0}"]) == .instrumentFamily)
+        #expect(AXLogicProElements.reading(fromSlotKinds: ["MIDI 效果插槽"]) == .instrumentFamily)
+    }
+
+    /// Mutation that turns this red: remove the Spanish value of the `INS_005_LeftArrangeCS`
+    /// QuickHelp title from inspectorChannelStripHelpPrefix's variants. The finder asks
+    /// `hasPrefixAny` of each layout item's help and refuses unless exactly one item with the
+    /// expected name qualifies, so the decoy -- the same name, the value later in its help --
+    /// proves the match is a prefix and not containment.
+    @Test("the inspector strip is found by a Spanish help that begins with the row's title")
+    func inspectorStripPrefixClass() {
+        let builder = FakeAXRuntimeBuilder()
+        let window = builder.element(9820)
+        let strip = builder.element(9821)
+        let decoy = builder.element(9822)
+        builder.setChildren(window, [decoy, strip])
+        for item in [strip, decoy] {
+            builder.setAttribute(item, kAXRoleAttribute as String, kAXLayoutItemRole as String)
+            builder.setAttribute(item, kAXDescriptionAttribute as String, "Audio 1")
+        }
+        builder.setAttribute(strip, kAXHelpAttribute as String, "Canal de inspector izquierdo. …")
+        builder.setAttribute(decoy, kAXHelpAttribute as String, "… Canal de inspector izquierdo")
+
+        let found = AXLogicProElements.inspectorChannelStrip(
+            named: "Audio 1", in: window, settleAttempts: 1, runtime: builder.makeAXRuntime()
+        )
+        #expect(found == strip)
+    }
+
+    // MARK: - Exact labels: Smart Controls, the plug-in window's View menu, the delete sheet
+
+    private func smartControlsPane(toggle: String) -> Bool {
+        let builder = FakeAXRuntimeBuilder()
+        let window = builder.element(9830)
+        let checkbox = builder.element(9831)
+        builder.setAttribute(window, kAXSubroleAttribute as String, kAXDialogSubrole as String)
+        builder.setAttribute(window, kAXTitleAttribute as String, "")
+        builder.setChildren(window, [checkbox])
+        builder.setAttribute(checkbox, kAXRoleAttribute as String, kAXCheckBoxRole as String)
+        builder.setAttribute(checkbox, kAXTitleAttribute as String, toggle)
+        return AXLogicProElements.isSmartControlsWindow(window, runtime: builder.makeAXRuntime())
+    }
+
+    /// Mutation that turns this red: remove the Simplified Chinese value of `Smart Controls#acc`
+    /// from pluginWindowSmartControlsControl's variants, or the Korean one. Korean ships the
+    /// English name with a no-break space between the words, which `.exact` does not fold into the
+    /// canonical's space, so it matches only through the member that carries it.
+    @Test("a docked pane whose toggle is Chinese or Korean Smart Controls is the non-blocking pane")
+    func smartControlsExactClass() {
+        #expect(smartControlsPane(toggle: "智能控制"))
+        #expect(smartControlsPane(toggle: "Smart\u{00A0}Controls"))
+        #expect(smartControlsPane(toggle: "Smart Control"))
+        #expect(!smartControlsPane(toggle: "智能控制 1"))
+    }
+
+    /// Mutation that turns this red: remove the German value of MAToolKit's
+    /// `PluginWindow_Controls` from pluginWindowControlsViewMenuItem's variants. The writer takes
+    /// the scoped View menu's items through `censusDescendantResult` and acts only on exactly one
+    /// match; the Editor item beside it must not be that match.
+    @Test("the plug-in window's German View menu yields exactly the Controls item")
+    func controlsViewMenuItemClass() throws {
+        let builder = FakeAXRuntimeBuilder()
+        let menu = builder.element(9840)
+        let controls = builder.element(9841)
+        let editor = builder.element(9842)
+        builder.setChildren(menu, [controls, editor])
+        builder.setAttribute(controls, kAXRoleAttribute as String, kAXMenuItemRole as String)
+        builder.setAttribute(controls, kAXTitleAttribute as String, "Regler")
+        builder.setAttribute(editor, kAXRoleAttribute as String, kAXMenuItemRole as String)
+        builder.setAttribute(editor, kAXTitleAttribute as String, "Editor")
+
+        let result = AXLocalePolicy.censusDescendantResult(
+            of: menu, role: kAXMenuItemRole, matching: AXLocalePolicy.pluginWindowControlsViewMenuItem,
+            maxDepth: 3, runtime: builder.makeAXRuntime()
+        )
+        guard case let .success(census) = result else {
+            Issue.record("the census could not read the menu: \(result)")
+            return
+        }
+        #expect(census.matches == [controls])
+    }
+
+    private func deleteSheetKind(primaryButtonTitle: String) -> ModalReconciliation.BlockingModalKind {
+        let builder = FakeAXRuntimeBuilder()
+        let app = builder.element(9850)
+        let window = builder.element(9851)
+        let sheet = builder.element(9852)
+        let deleteButton = builder.element(9853)
+        let cancelButton = builder.element(9854)
+
+        builder.setAttribute(app, kAXWindowsAttribute as String, [window])
+        builder.setAttribute(window, kAXRoleAttribute as String, kAXWindowRole as String)
+        builder.setAttribute(window, kAXSubroleAttribute as String, kAXStandardWindowSubrole as String)
+        builder.setAttribute(window, kAXModalAttribute as String, false)
+        builder.setAttribute(window, "AXSheets", [sheet])
+        builder.setAttribute(sheet, kAXRoleAttribute as String, kAXSheetRole as String)
+        builder.setAttribute(sheet, kAXDescriptionAttribute as String, "Delete Track and Regions?")
+        builder.setChildren(sheet, [deleteButton, cancelButton])
+        builder.setAttribute(deleteButton, kAXRoleAttribute as String, kAXButtonRole as String)
+        builder.setAttribute(deleteButton, kAXTitleAttribute as String, primaryButtonTitle)
+        builder.setAttribute(cancelButton, kAXRoleAttribute as String, kAXButtonRole as String)
+        builder.setAttribute(cancelButton, kAXTitleAttribute as String, "Cancel")
+
+        let runtime = builder.makeLogicRuntime(appElement: app, setAttributeHandler: nil, performActionHandler: nil)
+        return ModalReconciliation.classify(AccessibilityChannel.readModalSignals(runtime: runtime))
+    }
+
+    /// Mutation that turns this red: remove the German value of Logic's plain `Delete` row from
+    /// deleteTracksPrimaryButton's variants, or the Traditional Chinese value of
+    /// DeleteChannelStrips.strings 30.title. Both drive the reader #545 fixed, `readModalSignals`,
+    /// on the sheet shape #545 measured; `classify` is what decides, and without the member the
+    /// German sheet is an unknown sheet that is left on screen.
+    @Test("a German bare Delete and a Traditional Chinese channel-strip Delete classify as a delete confirmation")
+    func deleteSheetExactClass() {
+        #expect(deleteSheetKind(primaryButtonTitle: "Löschen") == .deleteConfirm)
+        #expect(deleteSheetKind(primaryButtonTitle: "刪除音軌和內容") == .deleteConfirm)
+        #expect(deleteSheetKind(primaryButtonTitle: "Löschen 刪除音軌和內容") != .deleteConfirm)
+    }
+}
