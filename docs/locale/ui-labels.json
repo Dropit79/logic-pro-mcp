@@ -6648,7 +6648,13 @@
     "tracks content",
     "tracks contents",
     "トラックコンテンツ",
-    "Spuren enthält"
+    "Spuren enthält",
+    "Contenido de Pistas",
+    "Pistes contenus",
+    "Contenuto di Tracce",
+    "Conteúdos de Pistas",
+    "“轨道”内容",
+    "音軌 內容"
    ],
    "rationale": "Identifies the arrange Track-Content group by normalized description; read-only classifier. German read 2026-09-12 off the de-DE navigation-free census of that day (#876), where it is the AXDescription of the AXGroup this label addresses; the spelling carries its capitals because Logic renders them.",
    "provenance": {
@@ -6730,7 +6736,13 @@
     "tracks headers",
     "트랙 헤더",
     "Spuren Titel",
-    "トラックヘッダ"
+    "トラックヘッダ",
+    "Cabecera de Pistas",
+    "En-tête Pistes",
+    "Intestazione di Tracce",
+    "Cabeçalho de Pistas",
+    "轨道 标头",
+    "音軌 標題"
    ],
    "rationale": "Identifies the track-header rail by normalized description; read-only classifier (structural detection preferred). German read 2026-09-12 off the de-DE navigation-free census of that day (#876), where it is the AXDescription of the AXGroup this label addresses; the spelling carries its capitals because Logic renders them.",
    "match": "exact_strict",

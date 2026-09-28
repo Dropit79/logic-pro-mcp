@@ -2421,10 +2421,16 @@ enum AXLocalePolicy {
     )
 
     /// Track-header rail description (normalized exact match).
+    /// No `derivedFrom`: this is a composition, not one row's values. The template and the noun,
+    /// multiplied in check-new-labelsets-name-a-row.py against LABELSETS-WITHOUT-A-ROW.json:
+    /// logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/%25%40%20header#value
+    /// English value: %@ header
+    /// logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/Tracks#value
+    /// English value: Tracks
     static let trackHeadersDescription = LabelSet(
         canonical: "track headers",
         variants: ["track header", "tracks header", "tracks headers", "트랙 헤더", "Spuren Titel",
-                   "トラックヘッダ"],
+                   "トラックヘッダ", "Cabecera de Pistas", "En-tête Pistes", "Intestazione di Tracce", "Cabeçalho de Pistas", "轨道 标头", "音軌 標題"],
         rationale: "Identifies the track-header rail by normalized description; read-only classifier (structural detection preferred). German read 2026-09-12 off the de-DE navigation-free census of that day (#876), where it is the AXDescription of the AXGroup this label addresses; the spelling carries its capitals because Logic renders them."
             + " Japanese added 2026-09-18. It was ALREADY MEASURED -- `Scripts/livekit/evidence.py`"
             + " has carried `トラックヘッダ` in its `Tracks header` aliases -- and"
@@ -2432,6 +2438,7 @@ enum AXLocalePolicy {
             + " warning that exits 0. A measured spelling the product cannot match is a language"
             + " the product does not work in, so that guard now fails instead, and this was the"
             + " one entry standing between it and doing so."
+            + " Extended on 2026-09-28 (#904) to every locale Logic ships by composition: the track-header rail's description is Apple's `%@ header` template in Logic.framework's Localizable.strings with the `Tracks` noun as its argument. The Korean, Japanese, German members this set already carried are exactly that composition, so the other languages are its values rather than new readings. No row holds the whole string, so there is no `derivedFrom`; docs/canon/LABELSETS-WITHOUT-A-ROW.json records the composition."
     )
 
     /// The Event tab of the List Editors pane, by `AXDescription`.
@@ -2471,11 +2478,19 @@ enum AXLocalePolicy {
     /// `…/AXSplitGroup/AXScrollArea/AXGroup[トラックコンテンツ]`. Without it
     /// `logic_project get_regions` failed with `channels_exhausted` on a
     /// Japanese UI while the identical call succeeded in English — #778.
+    ///
+    /// No `derivedFrom`: this is a composition, not one row's values. The template and the noun,
+    /// multiplied in check-new-labelsets-name-a-row.py against LABELSETS-WITHOUT-A-ROW.json:
+    /// logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/%25%40%20contents#value
+    /// English value: %@ contents
+    /// logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/Tracks#value
+    /// English value: Tracks
     static let trackContentExplicit = LabelSet(
         canonical: "트랙 콘텐츠",
         variants: ["track content", "track contents", "tracks content", "tracks contents",
-                   "トラックコンテンツ", "Spuren enthält"],
+                   "トラックコンテンツ", "Spuren enthält", "Contenido de Pistas", "Pistes contenus", "Contenuto di Tracce", "Conteúdos de Pistas", "“轨道”内容", "音軌 內容"],
         rationale: "Identifies the arrange Track-Content group by normalized description; read-only classifier. German read 2026-09-12 off the de-DE navigation-free census of that day (#876), where it is the AXDescription of the AXGroup this label addresses; the spelling carries its capitals because Logic renders them."
+            + " Extended on 2026-09-28 (#904) to every locale Logic ships by composition: the Track-Content group's description is Apple's `%@ contents` template in Logic.framework's Localizable.strings with the `Tracks` noun as its argument. The Korean, Japanese, German members this set already carried are exactly that composition, so the other languages are its values rather than new readings. No row holds the whole string, so there is no `derivedFrom`; docs/canon/LABELSETS-WITHOUT-A-ROW.json records the composition."
     )
     /// Fallback for a canvas that is labelled `Contents` rather than
     /// `Tracks contents`. It has NO Japanese form on purpose: the ja-JP census

@@ -512,3 +512,52 @@ struct Issue904LegacyDerivedRowsTests {
         #expect(deleteSheetKind(primaryButtonTitle: "Löschen 刪除音軌和內容") != .deleteConfirm)
     }
 }
+
+/// #904, the two compositions. Neither set names a row: Logic assembles each description from
+/// Apple's `%@ header` or `%@ contents` template and the `Tracks` noun, and
+/// docs/canon/LABELSETS-WITHOUT-A-ROW.json records both factors. Every locale string below was
+/// written by a script from the values `Scripts/logic_canon.py resolve` returned for them.
+@Suite("#904 the track-header and track-content compositions reach their consumers")
+struct Issue904ComposedLabelSetsTests {
+    private func isHeaderRail(_ description: String) -> Bool {
+        let builder = FakeAXRuntimeBuilder()
+        let group = builder.element(9860)
+        builder.setAttribute(group, kAXRoleAttribute as String, kAXGroupRole as String)
+        builder.setAttribute(group, kAXDescriptionAttribute as String, description)
+        return AXLogicProElements.isTrackHeadersGroup(group, runtime: builder.makeAXRuntime())
+    }
+
+    /// Mutation that turns this red: remove the Spanish composition from trackHeadersDescription's
+    /// variants. The group has no selection structure, so the description is the only way in;
+    /// the bare noun proves the match is the composition and not the word inside it.
+    @Test("a group described by the Spanish or Traditional Chinese track-header composition is the rail")
+    func headerRailComposition() {
+        #expect(isHeaderRail("Cabecera de Pistas"))
+        #expect(isHeaderRail("音軌 標題"))
+        #expect(!isHeaderRail("Pistas"))
+    }
+
+    private func enumeratesRegions(contentDescription: String) -> Bool {
+        let builder = FakeAXRuntimeBuilder()
+        let app = builder.element(9870)
+        let window = builder.element(9871)
+        let content = builder.element(9872)
+        builder.setAttribute(app, kAXMainWindowAttribute as String, window)
+        builder.setChildren(window, [content])
+        builder.setAttribute(content, kAXRoleAttribute as String, kAXGroupRole as String)
+        builder.setAttribute(content, kAXDescriptionAttribute as String, contentDescription)
+        let runtime = builder.makeLogicRuntime(appElement: app)
+        if case .success = AccessibilityChannel.enumerateRegionItems(runtime: runtime) { return true }
+        return false
+    }
+
+    /// Mutation that turns this red: remove the French composition from trackContentExplicit's
+    /// variants. `enumerateRegionItems` refuses with "Track Content group not found" when no group
+    /// is the canvas, so an empty project and an unreadable one stay apart.
+    @Test("a window whose canvas carries the French track-content composition enumerates its regions")
+    func trackContentComposition() {
+        #expect(enumeratesRegions(contentDescription: "Pistes contenus"))
+        #expect(enumeratesRegions(contentDescription: "“轨道”内容"))
+        #expect(!enumeratesRegions(contentDescription: "Pistes"))
+    }
+}
