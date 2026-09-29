@@ -696,3 +696,83 @@ struct Issue904UndoTemplateTests {
         #expect(!AXLocalePolicy.undoMenuItemPrefix.matches("Redo Insert Plug-in", mode: .template))
     }
 }
+
+/// #904, the plug-in window's View switcher. `pluginWindowViewSwitcher` was derived on 2026-09-16
+/// from the menu bar's `View#mti` row, whose French `Présentation` and Portuguese `Visualizar` are
+/// not what the plug-in window's AXMenuButton carries: on 2026-09-29 a French and a Portuguese
+/// Logic described it as `affichage` and `visualização`, the values of MAToolKit's `view` row, and
+/// the writer refused both as an unmeasured locale. The writer matches the button's AXDescription
+/// with `.exact` (`ControlsViewBooleanParameterWriter.measuredViewSwitcherOnce`), so that is the
+/// mode every test here uses. Every locale string below was written into this file by a script from
+/// the value `Scripts/logic_canon.py resolve` returns for the row named -- none is typed.
+@Suite("#904 the plug-in window's View switcher is MAToolKit's view row, not the menu bar's")
+struct Issue904PluginViewSwitcherRowTests {
+    // MAToolKit's row, the plug-in window's own namespace. Its English value: view
+    private static let toolKitView =
+        "logic-canon://strings/Contents%2FFrameworks%2FMAToolKit.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/view#value"
+
+    /// MAToolKit's `view` row in each of the ten locales Logic ships.
+    private static let toolKitViewValues: [(String, String)] = [
+        ("en", "view"),
+        ("ko", "보기"),
+        ("ja", "表示"),
+        ("de", "Ansicht"),
+        ("es", "visualización"),
+        ("fr", "affichage"),
+        ("it", "vista"),
+        ("pt", "visualização"),
+        ("zh_CN", "显示"),
+        ("zh_TW", "顯示方式"),
+    ]
+
+    /// The menu bar's `View#mti` in the two locales where it and MAToolKit's `view` differ by more
+    /// than case.
+    private static let menuBarOnly: [(String, String)] = [
+        ("fr", "Présentation"),
+        ("pt", "Visualizar"),
+    ]
+
+    /// Mutation that turns this red: put the menu bar's `Logic.framework ... View%23mti#value`
+    /// back in pluginWindowViewSwitcher's `derivedFrom`. The derived guard compares members with
+    /// the row case-folded; only this comparison says which row was chosen.
+    @Test("the switcher names MAToolKit's view row")
+    func derivedFromNamesTheRow() throws {
+        let ref = try #require(AXLocalePolicy.pluginWindowViewSwitcher.derivedFrom)
+        #expect(ref == Self.toolKitView)
+    }
+
+    /// Mutation that turns this red: put `Présentation` back in place of `affichage`, or
+    /// `Visualizar` in place of `visualização`, in pluginWindowViewSwitcher's variants. The
+    /// lowercase `view`, `visualización` and `vista` match the capitalised members because
+    /// `.exact` compares with `caseInsensitiveCompare`; the French and Portuguese values differ
+    /// from the menu bar's by more than case, so they match only through their own members.
+    @Test("each of the row's ten values is the switcher, matched as the writer matches it")
+    func everyRowValueMatches() {
+        #expect(Self.toolKitViewValues.count == 10)
+        for (locale, value) in Self.toolKitViewValues {
+            #expect(AXLocalePolicy.pluginWindowViewSwitcher.matches(value, mode: .exact),
+                    "\(locale) \(value) is MAToolKit's view and must be the switcher")
+        }
+    }
+
+    /// Mutation that turns this red: add `Présentation` or `Visualizar` to pluginWindowViewSwitcher's
+    /// variants beside the new members. A menu button that carries the menu bar's word is not the
+    /// switcher this control was read as, and must still refuse.
+    @Test("the menu bar's French and Portuguese View are not the switcher")
+    func menuBarSpellingsAreNotTheSwitcher() {
+        for (locale, value) in Self.menuBarOnly {
+            #expect(!AXLocalePolicy.pluginWindowViewSwitcher.matches(value, mode: .exact),
+                    "\(locale) \(value) is the menu bar's View, not the plug-in window's")
+        }
+    }
+
+    /// Mutation that turns this red: replace `Présentation` or `Visualizar` in viewMenuBar's
+    /// variants. The menu bar reads its own row; correcting the plug-in switcher must not move it.
+    @Test("the menu bar's View still carries French and Portuguese from its own row")
+    func viewMenuBarKeepsItsRow() {
+        for (locale, value) in Self.menuBarOnly {
+            #expect(AXLocalePolicy.viewMenuBar.matches(value, mode: .exact),
+                    "\(locale) \(value) is the menu bar's View")
+        }
+    }
+}

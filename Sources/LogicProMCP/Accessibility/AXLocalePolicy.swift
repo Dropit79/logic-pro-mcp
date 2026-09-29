@@ -2327,15 +2327,28 @@ enum AXLocalePolicy {
     /// live Compressor evidence on 2026-09-02 showed the `AXMenuButton`
     /// description is the localized View label, while AXTitle is the most
     /// recently selected view *or zoom* menu item and is not a view readback.
-    /// English `View` and Korean `보기` are the only measured descriptions;
-    /// another locale must refuse rather than treating an arbitrary menu
+    ///
+    /// The description is the value of MAToolKit's `view` row, the plug-in
+    /// window's own namespace. Read live: `View` and `보기` on 2026-09-02; on
+    /// 2026-09-29 `affichage` (fr), `visualização` (pt) and `보기` (ko), each the
+    /// only AXMenuButton description a watcher recorded in its plug-in window.
+    /// In the ten-language run of 2026-09-29 the writer switched the view
+    /// through this switcher in de, en, es, it, ja, ko, zh_CN and zh_TW (zh_CN
+    /// and zh_TW then answered `param_control_not_found`), but the AXDescription
+    /// of those windows was not recorded. Until then the set was derived (2026-09-16)
+    /// from the menu-bar `View#mti` row, which backs `viewMenuBar` and whose fr
+    /// `Présentation` and pt `Visualizar` this control does not carry, so fr and
+    /// pt refused as an unmeasured locale. `View`, `Visualización` and `Vista`
+    /// differ from this row's `view`, `visualización` and `vista` only by case,
+    /// and `.exact` compares with `caseInsensitiveCompare`. Any other
+    /// description must still refuse rather than treating an arbitrary menu
     /// button as the view switcher.
     static let pluginWindowViewSwitcher = LabelSet(
         canonical: "View",
-        variants: ["보기", "表示", "Ansicht", "Visualización", "Présentation", "Vista", "Visualizar", "显示", "顯示方式"],
-        rationale: "Measured live on 2026-09-02 in Compressor: the Controls/editor AXMenuButton identifies itself by AXDescription (View/보기); AXTitle is not a view readback."
-            + " Extended on 2026-09-16 to every locale Logic ships by reading the row Apple keys this control, keyed `#mti` in Apple's own namespace; the strings this label already carried are each one of that row's own values, so nothing measured was dropped and nothing was typed. Checked offline by Scripts/check-labelsets-are-derived.py.",
-        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/View%23mti#value"
+        variants: ["보기", "表示", "Ansicht", "Visualización", "affichage", "Vista", "visualização", "显示", "顯示方式"],
+        rationale: "Identifies the plug-in window's Controls/editor AXMenuButton by AXDescription; AXTitle is not a view readback (measured live 2026-09-02 in Compressor, View/보기). The description is the value of MAToolKit's `view` row: read live on 2026-09-29 as affichage (fr), visualização (pt) and 보기 (ko)."
+            + " The 2026-09-16 derivation used the menu-bar row `View#mti`, which backs viewMenuBar; its fr Présentation and pt Visualizar are not what this control carries, and fr and pt refused as unmeasured until this row replaced it. View, Visualización and Vista are kept because every match mode is case-insensitive and they equal this row's view, visualización and vista up to case. In the 2026-09-29 ten-language run the writer also switched the view through this switcher in de, es, it, ja, zh_CN and zh_TW; their descriptions were not recorded. MAToolKitHighLevel's `view` row carries the same ten values. Checked offline by Scripts/check-labelsets-are-derived.py.",
+        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FMAToolKit.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/view#value"
     )
 
     /// The measured Controls item in the scoped plugin-window View menu.

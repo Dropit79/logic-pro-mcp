@@ -4958,13 +4958,13 @@
     "表示",
     "Ansicht",
     "Visualización",
-    "Présentation",
+    "affichage",
     "Vista",
-    "Visualizar",
+    "visualização",
     "显示",
     "顯示方式"
    ],
-   "rationale": "Measured live on 2026-09-02 in Compressor: the Controls/editor AXMenuButton identifies itself by AXDescription (View/보기); AXTitle is not a view readback.",
+   "rationale": "Identifies the plug-in window's Controls/editor AXMenuButton by AXDescription; AXTitle is not a view readback (measured live 2026-09-02 in Compressor, View/보기). The description is the value of MAToolKit's `view` row: read live on 2026-09-29 as affichage (fr), visualização (pt) and 보기 (ko).",
    "match": "exact",
    "coverage": {
     "en-US": "derived",
