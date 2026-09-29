@@ -261,17 +261,33 @@ def _hits(text, known_canonicals, patterns):
         # string sharing that line. Found 2026-09-15 by adding a marker for `tell process "Logic
         # Pro"`: three real `'Save'` findings vanished with it. A line-wide skip is an exemption
         # that grows on its own.
-        exempt = {lit for marker, lit in PROTOCOL_COMPARISONS if marker in line}
+        exempt_spans = set()
+        for marker, lit in PROTOCOL_COMPARISONS:
+            quoted = f'"{lit}"'
+            literal_offset = marker.lower().rfind(quoted) + 1
+            for marker_match in re.finditer(re.escape(marker), line):
+                if literal_offset:
+                    start = marker_match.start() + literal_offset
+                    exempt_spans.add((start, start + len(lit)))
+                elif marker == 'every process whose ':
+                    # This marker ends before the process name. Only its name predicate is exempt.
+                    process_name = re.match(
+                        r'name\s+(?:is|contains|starts with|ends with)\s+"(Logic Pro)"',
+                        line[marker_match.end():])
+                    if process_name:
+                        start = marker_match.end() + process_name.start(1)
+                        exempt_spans.add((start, start + len(process_name.group(1))))
         for pattern in patterns:
             for match in pattern.finditer(line):
                 literal = match.group("lit") if "lit" in (match.re.groupindex or {}) else match.group(1)
-                if literal.strip().lower() in exempt:
+                literal_span = match.span("lit") if "lit" in (match.re.groupindex or {}) \
+                    else match.span(1)
+                if literal_span in exempt_spans:
                     continue
                 name = known_canonicals.get(literal.strip().lower())
                 if not name:
                     continue
-                span = (lineno, match.start("lit") if "lit" in (match.re.groupindex or {})
-                        else match.start(1), literal)
+                span = (lineno, literal_span[0], literal)
                 if span in seen_spans:
                     continue
                 seen_spans.add(span)

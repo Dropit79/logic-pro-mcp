@@ -226,6 +226,17 @@ case("an exemption does not silence the other localisable strings on its line",
 case("and the exempt literal itself is still exempt",
      _exempt_literal not in {lit.lower() for lit in _lits}, f"found {_lits!r}")
 
+_same_word = ('SCRIPT = \'tell process "Logic Pro" to click button "Logic Pro"\'\n')
+_found = scan(_same_word, {"logic pro": "applicationMenuBarItem"})
+case("a process name does not exempt a UI button with the same spelling",
+     [f[1] for f in _found] == ["Logic Pro"], f"found={_found!r}")
+
+_broad_process = ('SCRIPT = \'every process whose name contains "Logic Pro"; '
+                  'button "Logic Pro"\'\n')
+_found = scan(_broad_process, {"logic pro": "applicationMenuBarItem"})
+case("a process-name predicate exempts only its own literal",
+     [f[1] for f in _found] == ["Logic Pro"], f"found={_found!r}")
+
 # 12. Scripts/verify (ADR-027 P2 PR-1, #1028): a second root, scanned the same way, but keyed
 #     relative to itself rather than by basename -- Scripts/verify/probes.py and
 #     Scripts/verify/live/probes.py would otherwise share one KNOWN key. Both roots are patched
@@ -246,6 +257,18 @@ def scan_verify(filename, body, canonicals):
         G.LIVEKIT, G.VERIFY = original_livekit, original_verify
         os.remove(path)
 
+
+found = scan_verify("live/protocol_and_ui.py",
+                    'if name == "mute" and ui_title == "Mute": pass\n',
+                    {"mute": "trackMuteButton"})
+case("a verify protocol comparison does not exempt a same-word UI comparison",
+     [f[1] for f in found] == ["Mute"], f"found={found!r}")
+
+found = scan_verify("live/two_ui_matches.py",
+                    'if name == "mute" and ui_title == "Mute" and other_title == "Mute": pass\n',
+                    {"mute": "trackMuteButton"})
+case("two same-word UI comparisons beside a protocol comparison both count",
+     [f[1] for f in found] == ["Mute", "Mute"], f"found={found!r}")
 
 found = scan_verify("live/case.py",
                     'CLICK = \'click menu bar item "Mixer" of menu bar 1\'\n', CANONICALS)
