@@ -419,6 +419,32 @@ extension AXLogicProElements {
         slotDescription(in: strip, matching: AXLocalePolicy.outputSlotHelpKeyword, runtime: runtime)
     }
 
+    /// The output slot's button itself (#291 R2): the element `logic_mixer set_output_verified`
+    /// presses to open the strip's output popup.
+    ///
+    /// Found by the same walk and help match `outputSlotDestination` reads through, so the button
+    /// that is pressed is the button whose description the before and after reads come from. A
+    /// second search for "the output button" would be a second place to pick a different one.
+    static func outputSlotButton(
+        in strip: AXUIElement,
+        runtime: AXHelpers.Runtime = .production
+    ) -> AXUIElement? {
+        slotButton(in: strip, matching: AXLocalePolicy.outputSlotHelpKeyword, runtime: runtime)
+    }
+
+    /// The first button under the strip whose help matches, or nil.
+    private static func slotButton(
+        in strip: AXUIElement,
+        matching keyword: AXLocalePolicy.LabelSet,
+        runtime: AXHelpers.Runtime
+    ) -> AXUIElement? {
+        AXHelpers.findAllDescendants(
+            of: strip, role: kAXButtonRole, maxDepth: 4, runtime: runtime
+        ).first { button in
+            keyword.containsAny(in: (AXHelpers.getHelp(button, runtime: runtime) ?? "").lowercased())
+        }
+    }
+
     /// The description of the first slot button whose help matches, or nil.
     ///
     /// Shared by the input and output readers so the two cannot drift apart — a second copy of this
@@ -428,21 +454,16 @@ extension AXLogicProElements {
         matching keyword: AXLocalePolicy.LabelSet,
         runtime: AXHelpers.Runtime
     ) -> String? {
-        let buttons = AXHelpers.findAllDescendants(
-            of: strip, role: kAXButtonRole, maxDepth: 4, runtime: runtime
-        )
-        for button in buttons {
-            let help = AXHelpers.getHelp(button, runtime: runtime) ?? ""
-            guard keyword.containsAny(in: help.lowercased()) else { continue }
-            guard let description = AXHelpers.getDescription(button, runtime: runtime),
-                  !description.isEmpty else {
-                // The slot was found and did not name anything. That is a gap, not an empty route,
-                // so it reads the same as not finding the slot at all.
-                return nil
-            }
-            return description
+        guard let button = slotButton(in: strip, matching: keyword, runtime: runtime) else {
+            return nil
         }
-        return nil
+        guard let description = AXHelpers.getDescription(button, runtime: runtime),
+              !description.isEmpty else {
+            // The slot was found and did not name anything. That is a gap, not an empty route,
+            // so it reads the same as not finding the slot at all.
+            return nil
+        }
+        return description
     }
 
     /// What a channel strip's input slot says its source is (#291).
@@ -461,6 +482,78 @@ extension AXLogicProElements {
         runtime: AXHelpers.Runtime = .production
     ) -> String? {
         slotDescription(in: strip, matching: AXLocalePolicy.inputSlotHelpKeyword, runtime: runtime)
+    }
+
+    /// The three answers `inputSlotSource` folds into `nil`, kept apart (#291 R2).
+    enum InputSlotReading: Equatable, Sendable {
+        /// The slot's description, as `inputSlotSource` returns it.
+        case source(String)
+        /// Every element in the walk read, no button's help named the input slot, and no button
+        /// whose help named none of the input, output and send slots is described as a bus: a
+        /// software instrument strip, or one whose unrecognised buttons all name something else.
+        case noSlot
+        /// A children, role or help read in the walk failed; the slot was found and named nothing;
+        /// the description of a button whose help named no known slot failed to read; or such a
+        /// button is described as a bus — possibly an input slot whose help wording this project's
+        /// LabelSet does not know, so its absence was not established.
+        case unreadable
+    }
+
+    /// `inputSlotSource` with "no input slot" told apart from "did not read", for a caller whose
+    /// safety depends on the difference: `set_output_verified` treats a strip with no input slot
+    /// as one no bus can feed, which it may do only when that absence was read.
+    ///
+    /// The walk, depth and first match of `slotButton`, taken through `preOrderDescendants` and
+    /// `slotDecidingString`, so -25205 and -25212 are answers and any other failed read makes the
+    /// reading `.unreadable` instead of passing the element over.
+    ///
+    /// `.noSlot` is an absence that was established, not a keyword that failed to match (#1062
+    /// review R2-02): every `AXButton` whose help (nil counts) names none of the input, output and
+    /// send slots has its `AXDescription` read, and if any is described as a bus
+    /// (`RoutingGraphPublication.classifyOutputLabel` gives `.bus`) the reading is `.unreadable`,
+    /// because an input slot whose help wording is not in the LabelSet would read exactly so. A
+    /// description that answers -25205/-25212 is no description; any other failure is
+    /// `.unreadable`. Measured on Logic 12.3 ko, 2026-09-29, three strips (Inspector, "오디오 1",
+    /// "Aux 1"): the input slot's help is identical on the audio and aux strip and its description
+    /// is the source ("버스 2", "버스 1"); the other buttons are described 음소거, 솔로, 녹음, 모니터링,
+    /// 피크 레벨 측정기, 목록, Stereo Output, 보내기 버튼, 오디오 플러그인, 채널 모드, EQ,
+    /// 게인 축소 측정기, 설정, 라이브러리 표시기 — none a bus label.
+    static func inputSlotReading(
+        in strip: AXUIElement,
+        runtime: AXHelpers.Runtime = .production
+    ) -> InputSlotReading {
+        guard let walk = preOrderDescendants(of: strip, maxDepth: 4, runtime: runtime) else {
+            return .unreadable
+        }
+        var unidentifiedButtonNamesBus = false
+        for visit in walk {
+            guard case let .success(role) = slotDecidingString(
+                visit.element, kAXRoleAttribute as String, runtime: runtime
+            ) else { return .unreadable }
+            guard role == (kAXButtonRole as String) else { continue }
+            guard case let .success(help) = slotDecidingString(
+                visit.element, kAXHelpAttribute as String, runtime: runtime
+            ) else { return .unreadable }
+            let loweredHelp = (help ?? "").lowercased()
+            guard AXLocalePolicy.inputSlotHelpKeyword.containsAny(in: loweredHelp) else {
+                guard !AXLocalePolicy.outputSlotHelpKeyword.containsAny(in: loweredHelp),
+                      !AXLocalePolicy.sendSlotHelpKeyword.containsAny(in: loweredHelp) else { continue }
+                guard case let .success(description) = slotDecidingString(
+                    visit.element, kAXDescriptionAttribute as String, runtime: runtime
+                ) else { return .unreadable }
+                if let description,
+                   RoutingGraphPublication.classifyOutputLabel(description).0 == .bus {
+                    unidentifiedButtonNamesBus = true
+                }
+                continue
+            }
+            guard let description = AXHelpers.getDescription(visit.element, runtime: runtime),
+                  !description.isEmpty else {
+                return .unreadable
+            }
+            return .source(description)
+        }
+        return unidentifiedButtonNamesBus ? .unreadable : .noSlot
     }
 
     // MARK: - Send slots (#291)
