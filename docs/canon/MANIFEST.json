@@ -113,8 +113,8 @@
     "index/strings.values.tsv": "38d6d4d79b22e359d2af139961cbd1bcd214044d448107e03a32c70ee5303b77",
     "index/stringsdict.tsv": "538081502dfdd84fb916e331a08b1682b64807cdbc2adbfe6faf9c70a983a511",
     "index/stringsdict.values.tsv": "81c2945e23ef803ec6c80a4b3b1dab6f4d4d7f16554dc07956accb89e667190f",
-    "ledger/casefold.tsv": "74969f4312e18bcab6b0f0a29beb682f45bcb3245cb8e8e3db3786d8c1d1f19a",
-    "ledger/presence.tsv": "33bf6850e7d2b87f9b6cdc7494347de4079b65e98a0a3e9cd62961262a1d08ab"
+    "ledger/casefold.tsv": "08de40e6936c031ed03cd38976e75322c6293b6a6101589272c7ca479059fd1f",
+    "ledger/presence.tsv": "9a94617a4fae75642bd50d85adc2f35eb28ec1fade34ca5d13cb20e672aa7814"
   },
   "extractor_version": 3,
   "ledger_casefold_entries": {
@@ -122,42 +122,42 @@
       "-": 16
     },
     "niblabels": {
-      "-": 37,
+      "-": 36,
       "de": 28,
-      "en": 36,
+      "en": 35,
       "es": 29,
       "fr": 31,
       "it": 31,
       "ja": 35,
-      "ko": 41,
+      "ko": 40,
       "pt": 31,
       "zh_CN": 35,
       "zh_TW": 33
     },
     "nibstrings": {
-      "en": 99
+      "en": 98
     },
     "quickhelp": {
       "de": 48,
-      "en": 62,
+      "en": 61,
       "es": 49,
       "fr": 4,
       "ja": 60,
-      "ko": 65,
+      "ko": 64,
       "zh_CN": 38
     },
     "strings": {
       "-": 2,
-      "de": 167,
+      "de": 168,
       "en": 182,
-      "es": 171,
-      "fr": 159,
-      "it": 166,
-      "ja": 177,
+      "es": 172,
+      "fr": 160,
+      "it": 167,
+      "ja": 178,
       "ko": 180,
-      "pt": 175,
-      "zh_CN": 154,
-      "zh_TW": 151
+      "pt": 176,
+      "zh_CN": 155,
+      "zh_TW": 152
     }
   },
   "ledger_presence_entries": {
@@ -194,16 +194,16 @@
     },
     "strings": {
       "-": 3,
-      "de": 155,
-      "en": 166,
-      "es": 164,
-      "fr": 151,
-      "it": 160,
-      "ja": 165,
-      "ko": 180,
-      "pt": 168,
-      "zh_CN": 155,
-      "zh_TW": 149
+      "de": 156,
+      "en": 167,
+      "es": 165,
+      "fr": 152,
+      "it": 161,
+      "ja": 166,
+      "ko": 181,
+      "pt": 169,
+      "zh_CN": 156,
+      "zh_TW": 150
     }
   },
   "logic": {

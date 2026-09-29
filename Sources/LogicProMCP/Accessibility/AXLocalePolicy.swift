@@ -18,6 +18,13 @@ enum AXLocalePolicy {
         /// historically compared the AX description verbatim. Distinct from
         /// `.exact`, which trims surrounding whitespace.
         case exactStrict
+        /// The label is a title TEMPLATE with one `%@` (Apple's `Undo %@`), and the text matches when
+        /// it starts with what precedes the `%@`, ends with what follows it, and has something
+        /// non-empty between. The fixed parts compare as `.exact` compares (trimmed, case-insensitive).
+        /// Narrow on purpose (#904): only `AXLocalePolicy.editUndoMenuPath` may use it, and
+        /// `Scripts/check-template-mode-has-one-user.py` refuses any other user. Not a way to make
+        /// a set match more; a label with no `%@` never matches in this mode.
+        case template
     }
 
     struct LabelSet: Sendable, Equatable {
@@ -114,8 +121,51 @@ enum AXLocalePolicy {
                     ) != nil
                 case .exactStrict:
                     candidate.caseInsensitiveCompare(label) == .orderedSame
+                case .template:
+                    LabelSet.templateMatches(candidate, template: label)
                 }
             }
+        }
+
+        /// `.template`: split `template` at its one `%@`; the candidate must start with the part
+        /// before it, end with the part after it, and keep a non-blank middle. Diacritic-sensitive
+        /// like `.prefix`. The two fixed parts may not overlap in the candidate.
+        static func templateMatches(_ candidate: String, template: String) -> Bool {
+            let parts = template.components(separatedBy: "%@")
+            guard parts.count == 2 else { return false }
+            let head = parts[0], tail = parts[1]
+            let text = candidate as NSString
+
+            // Find the ranges of head and tail matches
+            let headRange: NSRange
+            if head.isEmpty {
+                headRange = NSRange(location: 0, length: 0)
+            } else {
+                headRange = text.range(of: head, options: [.anchored, .caseInsensitive])
+                if headRange.location == NSNotFound {
+                    return false
+                }
+            }
+
+            let tailRange: NSRange
+            if tail.isEmpty {
+                tailRange = NSRange(location: text.length, length: 0)
+            } else {
+                tailRange = text.range(of: tail, options: [.anchored, .backwards, .caseInsensitive])
+                if tailRange.location == NSNotFound {
+                    return false
+                }
+            }
+
+            // Check for overlap
+            let headEnd = headRange.location + headRange.length
+            if headEnd > tailRange.location {
+                return false
+            }
+
+            // Extract and check middle
+            let middle = text.substring(with: NSRange(location: headEnd, length: tailRange.location - headEnd))
+            return !middle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
 
         /// True if `haystack` contains ANY label as a substring.
@@ -1220,9 +1270,12 @@ enum AXLocalePolicy {
     )
 
     static let undoMenuItemPrefix = LabelSet(
-        canonical: "Undo",
-        variants: ["실행 취소"],
-        rationale: "Menu item includes the operation name after the localized Undo prefix."
+        canonical: "Undo %@",
+        variants: ["%@ 실행 취소", "取り消す- %@", "„%@“ widerrufen", "Deshacer %@", "Annuler %@", "Annulla %@", "Desfazer %@", "撤销%@", "還原「%@」"],
+        rationale: "The Edit menu's Undo entry is a title TEMPLATE, not a prefix: Apple ships `Undo %@`, and ko `%@ 실행 취소`, de `„%@“ widerrufen` and zh_TW `還原「%@」` put the `%@` first or inside quotes (read from Apple's data 2026-09-28; no Logic has been read showing our insert's entry outside English)."
+            + " Each string is the row's own value in that locale, copied by script from the row named below, so nothing here is typed; English is the canonical. The earlier variant `실행 취소` is NOT kept: it is not a value of the row, and as a prefix it matched nothing Korean Logic offers except `실행 취소할 수 없음`, the can't-undo entry."
+            + " Read only in the template match mode, through `editUndoMenuPath`; both fixed parts must match and the operation between them be non-empty. fr `Annuler` and it `Annulla` alone equal the Cancel word (~105 rows each in Apple's data) and es `Deshacer` equals Revert, which is why the old prefix reading was not safe on its own. Checked offline by Scripts/check-labelsets-are-derived.py.",
+        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/Undo%20%25%40#value"
     )
 
     /// What the Edit-menu Undo entry says when the thing on top of the stack is a plug-in insert.
@@ -2963,7 +3016,7 @@ enum AXLocalePolicy {
         item: showStepInputKeyboardMenuItem,
         itemMode: .contains
     )
-    static let editUndoMenuPath = MenuPath(bar: editMenuBar, item: undoMenuItemPrefix, itemMode: .prefix)
+    static let editUndoMenuPath = MenuPath(bar: editMenuBar, item: undoMenuItemPrefix, itemMode: .template)
     // #864 deliberately adds NO Redo label set. A `Redo` prefix would be a second authority claiming
     // the row can be found by its wording, and the measurement says it cannot: with an empty stack
     // Logic writes `Can't Undo`, which the prefix misses, and three Edit-menu titles carry the undo

@@ -561,3 +561,138 @@ struct Issue904ComposedLabelSetsTests {
         #expect(!enumeratesRegions(contentDescription: "Pistes"))
     }
 }
+
+/// #904: the Edit menu's Undo entry is matched through Apple's `Undo %@` template, in all ten locales.
+///
+/// The (locale, template, operation) rows below were written into this file by a script from the
+/// values `Scripts/logic_canon.py resolve` returns for `Undo %@` and for
+/// `Insert Plug-in in Channel Strip#und`; none is typed. `.template` reads only what the template
+/// says: the text before the `%@`, the text after it, and something between.
+/// The English value of the row the set names: Undo %@
+@Suite("#904 the Undo menu title matches through Apple's template in every locale")
+struct Issue904UndoTemplateTests {
+    private static let rows: [(locale: String, template: String, operation: String)] = [
+            ("en", "Undo %@", "Insert Plug-in in Channel Strip"),
+            ("ko", "%@ 실행 취소", "채널 스트립의 플러그인 삽입"),
+            ("ja", "取り消す- %@", "チャンネルストリップにプラグインを挿入"),
+            ("de", "„%@“ widerrufen", "Plug-in in Channel-Strip einfügen"),
+            ("es", "Deshacer %@", "inserción del módulo del canal"),
+            ("fr", "Annuler %@", "Insérer le module dans la tranche de console"),
+            ("it", "Annulla %@", "Inserisci plugin nella channel strip"),
+            ("pt", "Desfazer %@", "Inserir Plug-in no Canal"),
+            ("zh_CN", "撤销%@", "在通道条中插入插件"),
+            ("zh_TW", "還原「%@」", "在聲道控制排中插入外掛模組"),
+    ]
+
+    private static func parts(_ template: String) throws -> (head: String, tail: String) {
+        let pieces = template.components(separatedBy: "%@")
+        let two = try #require(pieces.count == 2 ? pieces : nil, "\(template) has not one %@")
+        return (two[0], two[1])
+    }
+
+    private static func title(_ row: (locale: String, template: String, operation: String)) -> String {
+        row.template.replacingOccurrences(of: "%@", with: row.operation)
+    }
+
+    /// Mutation that turns this red: change `Undo%20%25%40#value` to `Mixer%20Undo%20%25%40#value`
+    /// in undoMenuItemPrefix's `derivedFrom`, or drop a locale's template from its variants.
+    @Test("the set names the Undo template row and carries each locale's template")
+    func namesTheRow() {
+        #expect(AXLocalePolicy.undoMenuItemPrefix.derivedFrom
+            == "logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/Undo%20%25%40#value")
+        #expect(Self.rows.count == 10)
+        for row in Self.rows {
+            #expect(AXLocalePolicy.undoMenuItemPrefix.labels.contains(row.template), "\(row.locale) template missing")
+            #expect(AXLocalePolicy.undoPluginInsertMenuItem.labels.contains(row.operation), "\(row.locale) operation missing")
+        }
+    }
+
+    /// Mutation that turns this red (M4): put `editUndoMenuPath` back on `.prefix`. A label holding
+    /// a `%@` is never a prefix of a title, so no locale's entry is found.
+    @Test("the Edit-menu route reads the Undo entry with .template")
+    func routeUsesTemplate() {
+        #expect(AXLocalePolicy.editUndoMenuPath.itemMode == .template)
+    }
+
+    /// Mutations that turn this red: drop the suffix check (M1), drop the prefix check (M2).
+    @Test("the real Undo title for our insert matches in each of the ten locales")
+    func realTitleMatches() {
+        for row in Self.rows {
+            #expect(
+                AXLocalePolicy.undoMenuItemPrefix.matches(Self.title(row), mode: .template),
+                "\(row.locale): \(Self.title(row))")
+        }
+    }
+
+    @Test("a menu holding that title is found through the route's own mode")
+    func menuLookup() {
+        for (index, row) in Self.rows.enumerated() {
+            let builder = FakeAXRuntimeBuilder()
+            let item = builder.element(9900 + index * 3)
+            let other = builder.element(9901 + index * 3)
+            let menu = builder.element(9902 + index * 3)
+            builder.setAttribute(item, kAXRoleAttribute as String, kAXMenuItemRole as String)
+            builder.setAttribute(item, kAXTitleAttribute as String, Self.title(row))
+            builder.setAttribute(other, kAXRoleAttribute as String, kAXMenuItemRole as String)
+            builder.setAttribute(other, kAXTitleAttribute as String, "Redo")
+            builder.setChildren(menu, [other, item])
+            let found = AXLocalePolicy.findMenuItem(
+                under: menu, matching: AXLocalePolicy.editUndoMenuPath.item,
+                mode: AXLocalePolicy.editUndoMenuPath.itemMode, runtime: builder.makeAXRuntime())
+            #expect(found == item, "\(row.locale)")
+        }
+    }
+
+    /// Mutation that turns this red (M1): drop the suffix check. Only locales whose template has text
+    /// after the `%@` can show it.
+    @Test("a title with only the prefix does not match")
+    func prefixOnly() throws {
+        var exercised = 0
+        for row in Self.rows {
+            let p = try Self.parts(row.template)
+            guard !p.tail.isEmpty else { continue }
+            exercised += 1
+            #expect(!AXLocalePolicy.undoMenuItemPrefix.matches(p.head + row.operation, mode: .template), "\(row.locale)")
+        }
+        #expect(exercised >= 3)
+    }
+
+    /// Mutation that turns this red (M2): drop the prefix check.
+    @Test("a title with only the suffix does not match")
+    func suffixOnly() throws {
+        var exercised = 0
+        for row in Self.rows {
+            let p = try Self.parts(row.template)
+            guard !p.head.isEmpty else { continue }
+            exercised += 1
+            #expect(!AXLocalePolicy.undoMenuItemPrefix.matches(row.operation + p.tail, mode: .template), "\(row.locale)")
+        }
+        #expect(exercised >= 3)
+    }
+
+    /// Mutation that turns this red (M3): accept an empty middle.
+    @Test("a title with nothing between the two fixed parts does not match")
+    func emptyMiddle() throws {
+        for row in Self.rows {
+            let p = try Self.parts(row.template)
+            #expect(!AXLocalePolicy.undoMenuItemPrefix.matches(p.head + p.tail, mode: .template), "\(row.locale)")
+            #expect(!AXLocalePolicy.undoMenuItemPrefix.matches(p.head + " " + p.tail, mode: .template), "\(row.locale) blank")
+        }
+    }
+
+    /// Mutation that turns this red (M4): drop the overlap check, so the head and the tail may share
+    /// characters and the middle is cut with a negative length.
+    @Test("a title where the two fixed parts would overlap does not match")
+    func overlappingParts() {
+        #expect(AXLocalePolicy.LabelSet.templateMatches("aba", template: "a%@a"))
+        #expect(!AXLocalePolicy.LabelSet.templateMatches("a", template: "a%@a"))
+    }
+
+    @Test("fr Annuler and it Annulla alone, the Cancel word, do not match")
+    func cancelWordAlone() {
+        #expect(!AXLocalePolicy.undoMenuItemPrefix.matches("Annuler", mode: .template))
+        #expect(!AXLocalePolicy.undoMenuItemPrefix.matches("Annulla", mode: .template))
+        #expect(!AXLocalePolicy.undoMenuItemPrefix.matches("Deshacer", mode: .template))
+        #expect(!AXLocalePolicy.undoMenuItemPrefix.matches("Redo Insert Plug-in", mode: .template))
+    }
+}

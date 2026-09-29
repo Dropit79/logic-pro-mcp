@@ -366,8 +366,7 @@
         "sliderSendHint",
         "tickSliderLabel",
         "trackContentGeneric",
-        "transportRecordArmExclusion",
-        "undoMenuItemPrefix"
+        "transportRecordArmExclusion"
       ],
       "fr-FR": [
         "assignControlHelpKeyword",
@@ -386,8 +385,7 @@
         "sliderSendHint",
         "sliderZoomHint",
         "tickSliderLabel",
-        "trackContentGeneric",
-        "undoMenuItemPrefix"
+        "trackContentGeneric"
       ],
       "it-IT": [
         "assignControlHelpKeyword",
@@ -405,8 +403,7 @@
         "showMixerMenuItem",
         "sliderSendHint",
         "trackContentGeneric",
-        "transportRecordArmExclusion",
-        "undoMenuItemPrefix"
+        "transportRecordArmExclusion"
       ],
       "ja-JP": [
         "assignControlHelpKeyword",
@@ -416,8 +413,7 @@
         "settingPopupValue",
         "showMixerMenuItem",
         "sliderZoomHint",
-        "transportRecordArmExclusion",
-        "undoMenuItemPrefix"
+        "transportRecordArmExclusion"
       ],
       "ko-KR": [
         "assignControlHelpKeyword",
@@ -440,8 +436,7 @@
         "settingPopupValue",
         "showMixerMenuItem",
         "trackContentGeneric",
-        "transportRecordArmExclusion",
-        "undoMenuItemPrefix"
+        "transportRecordArmExclusion"
       ],
       "zh-CN": [
         "assignControlHelpKeyword",
@@ -463,8 +458,7 @@
         "trackTypeMaster",
         "transportContainerControlKeywords",
         "transportKeywordFalseFriends",
-        "transportRecordArmExclusion",
-        "undoMenuItemPrefix"
+        "transportRecordArmExclusion"
       ],
       "zh-TW": [
         "assignControlHelpKeyword",
@@ -490,8 +484,7 @@
         "trackTypeDrummer",
         "trackTypeMaster",
         "transportContainerControlKeywords",
-        "transportRecordArmExclusion",
-        "undoMenuItemPrefix"
+        "transportRecordArmExclusion"
       ]
     }
   },
