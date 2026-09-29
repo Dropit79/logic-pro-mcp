@@ -1468,10 +1468,15 @@ enum AXLocalePolicy {
 
     static let transportPlayControl = LabelSet(
         canonical: "play",
-        variants: ["재생", "再生", "Wiedergabe", "reproducir", "lecture", "riproduci", "reproduzir", "播放"],
+        variants: [
+            "재생", "再生", "Wiedergabe", "reproducir", "lecture", "riproduci", "reproduzir", "播放",
+            "Reproduz"
+        ],
         rationale: "Identifies the Play transport control when reading TransportState; read-only."
-            + " Extended on 2026-09-16 to every locale Logic ships by reading the row Apple keys this control; the strings this label already carried are each one of that row's own values, so nothing measured was dropped and nothing was typed. Checked offline by Scripts/check-labelsets-are-derived.py.",
-        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/play#value"
+            + " Extended on 2026-09-16 to every locale Logic ships by reading the row Apple keys this control; the strings this label already carried are each one of that row's own values, so nothing measured was dropped and nothing was typed. Checked offline by Scripts/check-labelsets-are-derived.py."
+            + " #1060: a Portuguese Logic 12.3 describes the control bar's Play checkbox `Reproduz` (read 2026-09-29), the pt value of `StrTransportBtns|||Play`, where `play` says `reproduzir`; neither the `.exactStrict` finder nor the containment read found it, so play and stop fell to the MCU rung. The control-bar row is named in alsoDerivedFrom and held to every locale by the same guard; in the other nine it agrees with `play` up to case.",
+        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/play#value",
+        alsoDerivedFrom: ["logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/pt/StrTransportBtns%7C%7C%7CPlay#value"]
     )
 
     static let transportRecordControl = LabelSet(
@@ -1883,6 +1888,18 @@ enum AXLocalePolicy {
         rationale: "Locates the per-track record-enable AXCheckBox; verbatim description match; read-only locator."
             + " Extended on 2026-09-27 (#1020) to every locale Logic ships by reading the plain `Record Enable` row, not its `#acc` sibling: the two differ only in Japanese, and the ja-JP track-header census of 2026-09-05 read `録音を可能にする`, the plain row's value, where `#acc` has `録音可能`. The ko-KR census of that day read `녹음 활성화`, which both rows carry. Before this the set matched in Korean and English only, so the record-enable checkbox was not found in the other eight languages and every arm through it refused. `Record` stays as the tolerance it was. Checked offline by Scripts/check-labelsets-are-derived.py.",
         derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/Record%20Enable#value"
+    )
+
+    /// The track header's Input Monitoring checkbox, read into `TrackState.isInputMonitoring` (#1040).
+    static let trackInputMonitoringButton = LabelSet(
+        canonical: "Input Monitoring",
+        variants: ["입력 모니터링", "入力モニタリング", "Input-Monitoring", "Monitorización de entrada", "Monitoring de l’entrée", "Monitoraggio ingresso", "Monitoramento de Entrada", "输入监听", "輸入監聽"],
+        rationale: "Identifies the track header's Input Monitoring checkbox by description substring; read-only state extraction (#1040)."
+            + " Derived on 2026-09-28 by Scripts/derive_label_variants.py, which chose the row Apple keys this control `Input Monitoring#acc` in Apple's own namespace; the canon marks that row's unit translated in every locale Logic ships."
+            + " The plain `Input Monitoring` row is named as well, because the track header's Mute (#291) and Record Enable (#1020) turned out to be described by their plain rows; here the two rows hold the same value in all ten locales, so either lookup is covered."
+            + " Read live before this set existed: the en-US track-header census of 2026-09-08 saw `Input Monitoring` on every header, and the ko-KR navigation-free census of 2026-09-05 saw an AXCheckBox described `입력 모니터링` inside each track's AXLayoutItem.",
+        derivedFrom: "logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/Input%20Monitoring%23acc#value",
+        alsoDerivedFrom: ["logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/Input%20Monitoring#value"]
     )
 
     // --- Track-header automation-mode read (WS3 AC2, value-only honesty fix) ---
@@ -3286,6 +3303,7 @@ enum AXLocalePolicy {
         trackSoloButton,
         trackRecordButton,
         trackRecordEnableCheckbox,
+        trackInputMonitoringButton,
         automationModeContext,
         automationModeWrite,
         automationModeTrim,

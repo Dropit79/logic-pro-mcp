@@ -109,12 +109,12 @@
     "index/pluginsettings.values.tsv": "81c2945e23ef803ec6c80a4b3b1dab6f4d4d7f16554dc07956accb89e667190f",
     "index/quickhelp.tsv": "b5f991422533beb898382ead18d863b9c782855bdb95c016fe5cf6b24476c69e",
     "index/quickhelp.values.tsv": "81c2945e23ef803ec6c80a4b3b1dab6f4d4d7f16554dc07956accb89e667190f",
-    "index/strings.tsv": "2a8fe45d5b237511c709591c550014929c4520a5a44ffa788920f5103053572b",
+    "index/strings.tsv": "6f54a35cdae57902175be9bdd7d7e6d68d0178fb05d0804884742e56f95bcfba",
     "index/strings.values.tsv": "38d6d4d79b22e359d2af139961cbd1bcd214044d448107e03a32c70ee5303b77",
     "index/stringsdict.tsv": "538081502dfdd84fb916e331a08b1682b64807cdbc2adbfe6faf9c70a983a511",
     "index/stringsdict.values.tsv": "81c2945e23ef803ec6c80a4b3b1dab6f4d4d7f16554dc07956accb89e667190f",
-    "ledger/casefold.tsv": "f161286ccf2585d0c0130ba62242affce9bc79ead6974bdca8e7043275957327",
-    "ledger/presence.tsv": "58f01675a1decc7647752a8d34c9c4b3df529bfd9ae516c050785e558a99a698"
+    "ledger/casefold.tsv": "74969f4312e18bcab6b0f0a29beb682f45bcb3245cb8e8e3db3786d8c1d1f19a",
+    "ledger/presence.tsv": "33bf6850e7d2b87f9b6cdc7494347de4079b65e98a0a3e9cd62961262a1d08ab"
   },
   "extractor_version": 3,
   "ledger_casefold_entries": {
@@ -123,19 +123,19 @@
     },
     "niblabels": {
       "-": 37,
-      "de": 27,
-      "en": 35,
-      "es": 28,
-      "fr": 30,
-      "it": 30,
-      "ja": 34,
-      "ko": 40,
-      "pt": 30,
-      "zh_CN": 34,
-      "zh_TW": 32
+      "de": 28,
+      "en": 36,
+      "es": 29,
+      "fr": 31,
+      "it": 31,
+      "ja": 35,
+      "ko": 41,
+      "pt": 31,
+      "zh_CN": 35,
+      "zh_TW": 33
     },
     "nibstrings": {
-      "en": 98
+      "en": 99
     },
     "quickhelp": {
       "de": 48,
@@ -148,16 +148,16 @@
     },
     "strings": {
       "-": 2,
-      "de": 166,
-      "en": 181,
-      "es": 170,
-      "fr": 158,
-      "it": 165,
-      "ja": 176,
-      "ko": 179,
-      "pt": 173,
-      "zh_CN": 153,
-      "zh_TW": 150
+      "de": 167,
+      "en": 182,
+      "es": 171,
+      "fr": 159,
+      "it": 166,
+      "ja": 177,
+      "ko": 180,
+      "pt": 175,
+      "zh_CN": 154,
+      "zh_TW": 151
     }
   },
   "ledger_presence_entries": {
@@ -166,19 +166,19 @@
     },
     "niblabels": {
       "-": 27,
-      "de": 24,
-      "en": 28,
-      "es": 28,
-      "fr": 29,
-      "it": 30,
-      "ja": 39,
-      "ko": 48,
-      "pt": 31,
-      "zh_CN": 39,
-      "zh_TW": 39
+      "de": 26,
+      "en": 30,
+      "es": 29,
+      "fr": 30,
+      "it": 31,
+      "ja": 40,
+      "ko": 49,
+      "pt": 32,
+      "zh_CN": 40,
+      "zh_TW": 40
     },
     "nibstrings": {
-      "en": 75
+      "en": 77
     },
     "quickhelp": {
       "de": 41,
@@ -194,16 +194,16 @@
     },
     "strings": {
       "-": 3,
-      "de": 153,
-      "en": 164,
-      "es": 163,
-      "fr": 150,
-      "it": 159,
-      "ja": 164,
-      "ko": 179,
-      "pt": 166,
-      "zh_CN": 154,
-      "zh_TW": 148
+      "de": 155,
+      "en": 166,
+      "es": 164,
+      "fr": 151,
+      "it": 160,
+      "ja": 165,
+      "ko": 180,
+      "pt": 168,
+      "zh_CN": 155,
+      "zh_TW": 149
     }
   },
   "logic": {
@@ -855,7 +855,7 @@
         "zh_CN": 1.1548866e-05,
         "zh_TW": 1.087226e-05
       },
-      "cited_rows": 5553,
+      "cited_rows": 5673,
       "cited_values": 2,
       "corpus_digest": "830a5131378ede72bb0a20211985166f367b7a35a30a85d875c9c25ff0b89e1a",
       "english_equal_rows_in_translated_units": {
