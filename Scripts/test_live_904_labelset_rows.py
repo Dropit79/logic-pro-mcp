@@ -7,7 +7,9 @@ the set, a named fallback, or not at all. The cases below give it reply shapes t
 `track_type_verification_source`, `observed_mode`, `automationMode`, `type`,
 `plugin_view_restore_attempted`, `plugin_view_switch_phase`, `regions[].kind`) and assert the
 outcome, then drive `run_locale` against a canned driver to show every set gets a row and that the
-row count check refuses a locale that is short.
+row count check refuses a locale that is short. Last, `main` runs with the screen instruments
+answered by a scenario, to show its exit code is 1 whenever evidence.py's `is_clean` refuses the
+document it wrote, even when every row is complete.
 
 WHAT IS NOT JUDGED
 ------------------
@@ -16,7 +18,9 @@ runner measures; this file only proves the classifier reads them honestly.
 
     python3 test_live_904_labelset_rows.py
 """
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import sys
@@ -56,14 +60,21 @@ def expect(label, got, want):
 
 C = R.classify
 
-# deleteTracksPrimaryButton: the English prefix fallback sits beside the set.
+# deleteTracksPrimaryButton: the English prefix fallback sits beside the set in EVERY language
+# (readModalSignals, ModalReconcile.swift:873-876), and the reply names neither the button it matched
+# nor which test matched: a German sheet whose button reads `Delete arbitrary` answers exactly this.
 expect("an English delete_confirm is the set or the Delete prefix, never the set alone",
        C("deleteTracksPrimaryButton", "en", "delete", {"reconciled_modal_kind": "delete_confirm"}),
        "set_or_fallback:Delete_prefix")
 for lproj in ("de", "ja", "zh_TW"):
-    expect(f"a {lproj} delete_confirm is the set",
+    expect(f"a {lproj} delete_confirm is the set or the Delete prefix: the reply cannot say which",
            C("deleteTracksPrimaryButton", lproj, "delete", {"reconciled_modal_kind": "delete_confirm"}),
-           "set")
+           "set_or_fallback:Delete_prefix")
+check("no locale's delete_confirm is credited to the set alone",
+      all(C("deleteTracksPrimaryButton", code, "delete", {"state": "A",
+                                                          "reconciled_modal_kind": "delete_confirm",
+                                                          "reconciled_action": "confirm_delete"})
+          != "set" for code in R.DEFAULT_LPROJS))
 expect("an unknown_sheet on delete is the set refusing",
        C("deleteTracksPrimaryButton", "fr", "delete", {"reconciled_modal_kind": "unknown_sheet"}),
        "refused")
@@ -232,7 +243,8 @@ check("run_locale writes every row it makes to the JSONL", written == rows.rows)
 check("run_locale gives every set a row", R.incomplete_locales(rows.rows, ["de"]) == {},
       R.incomplete_locales(rows.rows, ["de"]))
 check("run_locale meets no unnamed error on answered calls", rows.unnamed == [], rows.unnamed)
-expect("the canned de delete is the set", got.get(("deleteTracksPrimaryButton", "delete")), "set")
+expect("the canned de delete is the set or the Delete prefix",
+       got.get(("deleteTracksPrimaryButton", "delete")), "set_or_fallback:Delete_prefix")
 expect("the canned external MIDI header is the fallback",
        got.get(("inspectorChannelStripHelpPrefix", "create_external_midi")), "fallback:observed_header")
 expect("the canned touch readback is the set",
@@ -272,6 +284,141 @@ finally:
     os.environ.pop("LPM_LIVE_LOCK", None)
     if saved is not None:
         os.environ["LPM_LIVE_LOCK"] = saved
+
+# main's exit code agrees with the evidence document (R1-904-02). The instruments that touch the
+# screen are replaced; the records they leave have the shapes evidence.py writes, and the verdict is
+# evidence.py's own `summarize` and `is_clean`, not a copy of them. Every product-side condition the
+# runner checks is met in each scenario, so the exit code can only move with the evidence.
+E = R.E
+L993 = R.L993
+
+
+class RunEvidence(E.Evidence):
+    """E.Evidence with the screen instruments answered by the scenario; records and verdict are real."""
+
+    band = (0, 40, 240, 600)
+    subject = "Tracks header"
+    visual_passes = True
+
+    def located_band(self, *selector):
+        return (self.band, self.subject) if self.band else (None, None)
+
+    def shot(self, tag, settle_region=None, window_title=None, window=None):
+        path = os.path.join(self.dir, tag.replace("/", "_") + ".png")
+        self.records.append({"kind": "capture", "tag": tag, "file": path, "settled": True,
+                             "display": {"wholly_within": True}})
+        return {"file": path, "settled": True}
+
+    def visual(self, tag, before_file, after_file, region, expect_change, why,
+               window_points=None, subject=None):
+        self.records.append({"kind": "visual", "tag": tag, "region": list(region),
+                             "subject": subject, "passed": self.visual_passes})
+        return self.visual_passes
+
+    def record_screen(self, seconds=90):
+        return {"file": os.path.join(self.dir, "run.mov"), "seconds": seconds}
+
+    def stop_recording(self, handle, settle=1.0):
+        if handle:
+            with open(handle["file"], "wb") as movie:
+                movie.write(b"\0" * E.MIN_RECORDING_BYTES)
+            self.recording(handle["file"])
+
+    def write(self):
+        self.records.append({"kind": "environment", "screen_locked": False})
+        type(self).last_records = self.records
+        type(self).last = E.summarize(self.records)
+        return type(self).last
+
+
+RECORD_OPERATION = E.Driver._record_operation
+
+
+class RecordingCanned(Canned):
+    """Canned, with each call put in the document the way E.Driver puts it there."""
+
+    def tool(self, name, command, params=None):
+        body = Canned.tool(self, name, command, params)
+        RECORD_OPERATION(self, name, command, params, body)
+        return body
+
+    def close(self):
+        pass
+
+
+class UnnamedAudioCanned(RecordingCanned):
+    """RecordingCanned, except create_audio answers a State C with no error code.
+
+    That is the change the runner's named-row check names as its own mutation: the reply is one the
+    classifier cannot name, and nothing else about the run is disturbed.
+    """
+
+    def tool(self, name, command, params=None):
+        if command == "create_audio":
+            body = {"state": "C"}
+            RECORD_OPERATION(self, name, command, params, body)
+            return body
+        return RecordingCanned.tool(self, name, command, params)
+
+
+def run_main(scenario, driver=RecordingCanned):
+    """main()'s exit code, evidence summary and check records for one `scenario` and `driver`."""
+    title = lambda code: f"{L993.FIXTURE_NAME} - {code}"  # noqa: E731
+    saved = {(E, "Evidence"): E.Evidence, (E, "Driver"): E.Driver, (E, "have_tools"): E.have_tools,
+             (E, "blocking_modal"): E.blocking_modal, (E, "REPO"): E.REPO, (E, "BIN"): E.BIN,
+             (L993, "switch_to"): L993.switch_to, (L993, "language_setting"): L993.language_setting,
+             (L993, "window_names"): L993.window_names}
+    saved_env = {k: os.environ.get(k) for k in ("LPM_LIVE_LOCK", "LPM_EVIDENCE_ROOT", "LPM_BINARY")}
+    try:
+        with tempfile.TemporaryDirectory() as scratch:
+            lock, binary = os.path.join(scratch, "lock"), os.path.join(scratch, "LogicProMCP")
+            for path in (lock, binary):
+                open(path, "w").close()
+            os.environ.update(LPM_LIVE_LOCK=lock, LPM_EVIDENCE_ROOT=scratch, LPM_BINARY=binary)
+            E.Evidence = type("Scenario", (RunEvidence,), dict(scenario, last=None, last_records=None))
+            E.Driver, E.have_tools, E.blocking_modal = driver, lambda: [], lambda: None
+            L993.switch_to = lambda code, force=False: {"arrange_window": title(code),
+                                                         "language_setting": [L993.CODES[code]]}
+            L993.language_setting = lambda: [L993.CODES[R.RESTORE]]
+            L993.window_names = lambda: [title(R.RESTORE)]
+            with contextlib.redirect_stdout(io.StringIO()):  # main prints every row
+                code = R.main(["live_904", os.path.dirname(HERE), "0" * 40, "de"])
+            return code, E.Evidence.last, E.Evidence.last_records or []
+    finally:
+        for (owner, attr), value in saved.items():
+            setattr(owner, attr, value)
+        for key, value in saved_env.items():
+            os.environ.pop(key, None)
+            if value is not None:
+                os.environ[key] = value
+
+
+code, summary, records = run_main({})
+check("a run whose evidence earns a recording, a capture and a visual with a subject is clean",
+      E.is_clean(summary), summary)
+expect("main exits 0 when the rows are complete and the evidence is clean", code, 0)
+code, summary, records = run_main({"visual_passes": False})
+check("a failed visual leaves the evidence unclean", summary and not E.is_clean(summary), summary)
+expect("main exits 1 when the evidence is unclean though every row is complete", code, 1)
+code, summary, records = run_main({"band": None})
+check("a band that does not resolve records no visual", summary and summary["visual_assertions"] == 0,
+      summary)
+expect("main exits 1 when no visual was earned", code, 1)
+
+# The only fault is a reply the classifier cannot name: every row is present and every screen
+# instrument passes, so the named-row check alone must hold main's exit code at 1.
+NAMED_ROW_TAG = "904/every-requested-language-has-a-named-row-for-every-set"
+code, summary, records = run_main({}, driver=UnnamedAudioCanned)
+checks = [r for r in records if r.get("kind") == "check"]
+named = [r for r in checks if r.get("tag") == NAMED_ROW_TAG]
+others = [r for r in checks if r.get("tag") != NAMED_ROW_TAG]
+expect("main exits 1 when a reply the classifier cannot name is the only fault", code, 1)
+check("the named-row check is recorded false when a reply the classifier cannot name is the only fault",
+      len(named) == 1 and named[0].get("passed") is False
+      and bool((named[0].get("observed") or {}).get("unnamed_errors")), named)
+check("a reply the classifier cannot name is the only fault: every other check passes",
+      bool(others) and all(r.get("passed") is True for r in others),
+      [(r.get("tag"), r.get("passed")) for r in others])
 
 print(f"\n{'FAILED' if failed else 'passed'}: {failed} failure(s)")
 sys.exit(1 if failed else 0)

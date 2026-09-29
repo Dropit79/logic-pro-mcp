@@ -27,9 +27,12 @@ WHERE EACH READING COMES FROM (Sources/LogicProMCP, read at this head)
 --------------------------------------------------------------------
 - deleteTracksPrimaryButton, `logic_tracks.delete` on a track `get_regions` shows holding a region
   (an empty track is deleted with no sheet). `reconciled_modal_kind == "delete_confirm"` needs the
-  primary button, which is the set OR the English `hasPrefix("Delete ")` beside it
-  (Channels/AccessibilityChannel+ModalReconcile.swift:873-876), so in `en` it is only
-  `set_or_fallback:Delete_prefix`. `unknown_sheet` is the sheet read without the button: refused.
+  primary button, which is the set OR the English `hasPrefix("Delete ")` beside it, in EVERY
+  language (Channels/AccessibilityChannel+ModalReconcile.swift:873-876). The reply carries the kind
+  and no button title or match source: `deletePrimaryTitle` goes to the executor, not to the
+  envelope (mergeReconcileExtras, :2237). So a German sheet whose button reads `Delete anything`
+  answers exactly as the German set would, and the row is `set_or_fallback:Delete_prefix` in every
+  language, never `set`. `unknown_sheet` is the sheet read without the button: refused.
 - inspectorChannelStripHelpPrefix and midiEffectSlotHelpKeyword, `create_instrument`,
   `create_audio`, `create_external_midi`: `track_type_verification_source`
   (Channels/AccessibilityChannel+Tracks.swift:2192-2207). `inspector_channel_strip_instrument_family`
@@ -68,7 +71,11 @@ restored (and read back) in a `finally`. The run does not take the live lock; it
 unless LPM_LIVE_LOCK names an existing file, because the caller holds it. The exit code is 1 when a
 requested locale has fewer rows than the set list (zero rows is never a pass), when a reply is one
 the classifier cannot name (a transport failure, non-JSON text, an empty resource, State C with no
-error code), or when the Korean restore did not read back.
+error code), when the Korean restore did not read back, or when the evidence document is not
+`evidence.is_clean` -- which for this `ui` surface needs a recording, a capture and a visual
+assertion with a subject, as live_993 earns them: a screen recording over the run, and the Korean
+fixture's `Tracks header` band captured before the sweep (reopened discarding, so it is the fixture
+as saved) and after the Korean restore, asserted unchanged because nothing was saved.
 """
 
 import hashlib
@@ -160,7 +167,8 @@ def classify(set_name, locale, call, reply):
     """How `reply` reached `set_name`: one of OUTCOMES, a fallback naming what answered.
 
     Pure: it reads only its arguments. A (set, call) pair it does not know, or a reply without the
-    keys it reads, is `not_reached` -- never `set`.
+    keys it reads, is `not_reached` -- never `set`. No outcome depends on `locale`: every fallback
+    the product consults is consulted in every language.
     """
     if set_name in LIMITS:
         return "not_reachable_via_mcp"
@@ -169,7 +177,9 @@ def classify(set_name, locale, call, reply):
     if set_name == "deleteTracksPrimaryButton" and call == DELETE_COMMAND:
         kind = reply.get("reconciled_modal_kind")
         if kind == "delete_confirm":
-            return _set_or_fallback("Delete_prefix") if locale == "en" else "set"
+            # Not locale-dependent: the English prefix is consulted in every language, and the
+            # reply names neither the button it matched nor which test matched it.
+            return _set_or_fallback("Delete_prefix")
         return "refused" if kind == "unknown_sheet" else "not_reached"
     if set_name in ("inspectorChannelStripHelpPrefix", "midiEffectSlotHelpKeyword") \
             and call.startswith("create_"):
@@ -456,7 +466,19 @@ def main(argv):
     rows = Rows(os.path.join(ev.dir, "live_904_labelset_rows.jsonl"), head, E.BIN)
     languages, failures = {}, {}
     restored = {}
+    # live_993's duration, for the same per-language quit-and-relaunch sweep.
+    recording = ev.record_screen(seconds=max(150, 90 * len(lprojs)))
+    band, subject, before_shot = None, None, None
     try:
+        # Reopened discarding, so the band below is the fixture as saved; the Korean restore in the
+        # `finally` reopens it the same way, and every language between them discards its tracks.
+        baseline = L993.switch_to(RESTORE, force=True)
+        ev.note("904/korean-baseline", baseline)
+        if baseline.get("arrange_window"):
+            band, subject = ev.located_band("Tracks header")
+            if band:
+                before_shot = ev.shot("904/korean-fixture-before", settle_region=band,
+                                      window_title=baseline["arrange_window"])
         for lproj in lprojs:
             language = L993.switch_to(lproj, force=True)
             languages[lproj] = language
@@ -485,6 +507,18 @@ def main(argv):
                           and restored["arrange_window"] in (restored["window_names_after_restore"]
                                                              or []))
         ev.restored("904/Logic-language-restored-to-Korean", restored["ok"], repr(restored))
+        # No before capture (the baseline did not open, or the band did not resolve) records no
+        # visual, and `E.is_clean` below refuses the run for it: absence is not a pass.
+        if before_shot and restored.get("arrange_window"):
+            after_shot = ev.shot("904/korean-fixture-after", settle_region=band,
+                                 window_title=restored["arrange_window"])
+            ev.visual("904/korean-fixture-rail-after-locale-sweep",
+                      before_shot["file"], after_shot["file"], band,
+                      expect_change=False,
+                      why="every language reopened the fixture through a quit that discards, so "
+                          "the tracks each one created and deleted were never saved",
+                      subject=subject)
+        ev.stop_recording(recording)
 
     incomplete = incomplete_locales(rows.rows, lprojs)
     for lproj in lprojs:
@@ -492,6 +526,14 @@ def main(argv):
                  f"at least {len(SETS)} rows and one for every set in {lproj}",
                  incomplete.get(lproj, {"rows": sum(r["locale"] == lproj for r in rows.rows)}),
                  "drop the Limit rows from run_locale: every locale is short five sets")
+    complete = not incomplete and not rows.unnamed
+    ev.check("904/every-requested-language-has-a-named-row-for-every-set", complete,
+             f"every requested language has a row for each of the {len(SETS)} sets and no reply "
+             "the classifier cannot name",
+             {"requested": lprojs, "incomplete_locales": incomplete, "unnamed_errors": rows.unnamed,
+              "locale_failures": failures},
+             "return a State C with no error code from logic_tracks.create_audio: every language's "
+             "create_audio row becomes an unnamed error")
     matrix = {}
     for row in rows.rows:
         matrix.setdefault(row["set"], {}).setdefault(row["locale"], {})[row["call"]] = row["matched_via"]
@@ -503,10 +545,11 @@ def main(argv):
     with open(os.path.join(ev.dir, "live_904_labelset_summary.json"), "w", encoding="utf-8") as handle:
         json.dump(summary, handle, ensure_ascii=False, indent=1)
     out = ev.write()
+    clean = E.is_clean(out)
     print(json.dumps({"incomplete_locales": incomplete, "unnamed_errors": rows.unnamed,
                       "korean_restored": restored.get("ok"), "rows": len(rows.rows),
-                      "evidence_clean": E.is_clean(out)}, ensure_ascii=False, indent=1))
-    return 0 if not incomplete and not rows.unnamed and restored.get("ok") else 1
+                      "evidence_clean": clean}, ensure_ascii=False, indent=1))
+    return 0 if complete and restored.get("ok") and clean else 1
 
 
 if __name__ == "__main__":
