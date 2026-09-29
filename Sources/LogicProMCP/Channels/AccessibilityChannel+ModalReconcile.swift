@@ -981,27 +981,39 @@ extension AccessibilityChannel {
     ) -> TopLevelDialogRead {
         var firstBlockingDialog: (element: AXUIElement, subrole: String)?
         for window in windows {
+            // #1063: Logic lists the tooltip under a resting pointer among its
+            // AXWindows (measured: AXModal -25205). A tooltip cannot hold input,
+            // so an entry whose role is READ as AXHelpTag leaves the scan
+            // whatever its AXModal answers — a failure, a successful nil, or
+            // true. What AXModal says is never what excludes it. An explicit
+            // false leaves without a role read, as every ordinary window does.
             switch AXHelpers.getAttributeResult(
                 window, kAXModalAttribute as String, runtime: runtime.ax
             ) as Result<Bool?, AXHelpers.AXStatusError> {
             case .success(.some(false)):
                 continue
             case .success(.none):
+                if windowRoleReadsAsHelpTag(window, runtime: runtime.ax) { continue }
                 // `AXModal` is recommended rather than required. A successful
                 // nil is also what the typed helper produces for a malformed
                 // payload, so neither establishes that this window is non-modal.
                 return .unreadable(.topLevelWindowModalReadFailed(.malformedAttribute))
             case .failure(let error):
+                if windowRoleReadsAsHelpTag(window, runtime: runtime.ax) { continue }
                 // Missing `AXModal` is likewise not an explicit false. Unlike
                 // AXSheets, -25205/-25212 cannot be treated as structural
                 // absence here without guessing that an unobservable window is
-                // non-modal and letting it certify State A.
+                // non-modal and letting it certify State A. That still holds for
+                // every entry not identified above, including one whose role
+                // read failed or came back as a successful nil.
                 return .unreadable(.topLevelWindowModalReadFailed(error))
             case .success(.some(true)):
-                break
+                if windowRoleReadsAsHelpTag(window, runtime: runtime.ax) { continue }
             }
 
-            // `AXModal == true` is already enough to make this window block.
+            // `AXModal == true` on an entry not identified above as a help tag
+            // — including one whose role read failed or came back nil — is
+            // already enough to make this window block.
             // Retain the same status-preserving subrole value for the exclusion
             // and alert-target paths; asking the best-effort API again here used
             // to turn a confirmed AXDialog into a clean observation on a transient
@@ -1195,6 +1207,28 @@ extension AccessibilityChannel {
     /// always falls through to the descendant traversal above.
     private static func axStatusIsDefinitiveAbsence(_ error: AXHelpers.AXStatusError) -> Bool {
         error.raw == AXError.attributeUnsupported.rawValue || error.raw == AXError.noValue.rawValue
+    }
+
+    /// #1063: whether an `AXWindows` entry is a tooltip, by its role as READ. Only a successful read
+    /// that names `AXHelpTag` answers yes. A failed role read, or a successful nil (which is also what
+    /// a malformed payload produces), identifies nothing and answers no, so the entry's `AXModal`
+    /// answer still decides for it: unreadable when that answer is missing, a blocker when it is
+    /// true. Measured on Logic: the tooltip entry answers
+    /// `AXModal` and `AXSubrole` -25205 and `AXTitle` -25212 beside two windows reporting
+    /// `AXModal` false; the live harness skips the same entry (`Scripts/livekit/evidence.py`
+    /// `_is_help_tag`).
+    static func windowRoleReadsAsHelpTag(
+        _ window: AXUIElement,
+        runtime: AXHelpers.Runtime
+    ) -> Bool {
+        switch AXHelpers.getAttributeResult(
+            window, kAXRoleAttribute as String, runtime: runtime
+        ) as Result<String?, AXHelpers.AXStatusError> {
+        case .success(.some(let role)):
+            return role == (kAXHelpTagRole as String)
+        case .success(.none), .failure:
+            return false
+        }
     }
 
     /// `invalidUIElement` (-25202) on the EXACT element a bound witness reads
