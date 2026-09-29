@@ -498,7 +498,8 @@ def main(argv):
     summary = {"head_sha": head, "binary": E.BIN, "binary_sha256": binary_sha, "lprojs": lprojs,
                "sets": list(SETS), "matrix": matrix, "incomplete_locales": incomplete,
                "unnamed_errors": rows.unnamed, "locale_failures": failures,
-               "languages": languages, "korean_restore": restored}
+               "languages": languages, "korean_restore": restored,
+               "system_events_restarts": list(L993.SYSTEM_EVENTS_RESTARTS)}
     with open(os.path.join(ev.dir, "live_904_labelset_summary.json"), "w", encoding="utf-8") as handle:
         json.dump(summary, handle, ensure_ascii=False, indent=1)
     out = ev.write()
