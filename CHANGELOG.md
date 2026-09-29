@@ -8,6 +8,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- **`logic_mixer set_output_verified`: one strip's output to one exact destination, read back
+  from the same strip (#291 R2).** `destination` is `{kind:"bus", number}`, `{kind:"physical",
+  ports:[a,b]}` or `{kind:"stereo_output"}`; the strip is `track` or `target_ref`;
+  `expected_current` is optional and may also be `{kind:"no_output"}`. No Output is not a
+  destination: a strip set to it was measured to open no output menu, so the op could not set it
+  back, and a strip already at No Output is refused `unsupported_state`. No parameter is a
+  localized label. It refuses before any press when the current output does not read or
+  classify, when `expected_current` differs, when the transport is running or unreadable, when a
+  strip fed by a bus would reach its own input bus (`routing_cycle`) or a strip that check must
+  follow does not read or has an occupied send (`routing_dependency_unknown`), and when no other
+  strip receives the bus (`bus_has_no_receiver`: Logic would create an aux, which is #967's to
+  do). A destination already in place is State A `changed: false` with nothing pressed. The popup
+  entry is chosen under the submenu that owns it (the root's checked entry only echoes the current
+  output) and refused when missing, repeated under one parent, or when an entry's title or
+  submenu does not read (`menu_failure: "menu_not_read"`). State A needs the same strip, found again at
+  its ordinal because Logic replaces a strip's elements when its output changes, to read back the
+  destination and the strip count to hold; a count that grew is State C `unexpected_side_effect:
+  "strip_created"`, left as it is. Logic adds a strip for an output pair no strip used before and
+  removes it once the pair is unused, so a move onto or off such a pair is State C
+  (`strip_created` / `strip_removed`) although the output changed. The reply carries the observed
+  `before` for the inverse call. `set_output` stays not-exposed. Registry
+  censuses grow to 117 operations; the op joins the `legacy_index_allowed` census.
+
 ### Fixed
 - **`transport.goto_position`'s CGEvent fallback types nothing until the Go To Position dialog is
   on screen (#1038).** It used to post the position and Return right after the key that opens the
