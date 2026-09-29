@@ -51,7 +51,10 @@ CODES = {"en": "en", "ko": "ko", "ja": "ja", "de": "de", "es": "es", "fr": "fr",
 APP = "/Applications/Logic Pro.app"
 STRINGS = (APP + "/Contents/Frameworks/Logic.framework/Versions/A/Resources/%s.lproj/"
            "Localizable.strings")
-FIXTURE = os.path.expanduser("~/Music/Logic/lpm-locale-campaign.logicx")
+# LPM_LOCALE_FIXTURE names a copy outside ~/Music: a shell with no Files & Folders grant for Music
+# (the fleet tmux shell) gets EPERM there, and the server's project/info then answers `default`.
+FIXTURE = (os.environ.get("LPM_LOCALE_FIXTURE")
+           or os.path.expanduser("~/Music/Logic/lpm-locale-campaign.logicx"))
 FIXTURE_NAME = os.path.splitext(os.path.basename(FIXTURE))[0]
 RESTORE = "ko"
 LAUNCH_TIMEOUT = 150.0
