@@ -18,7 +18,7 @@ struct ProjectDispatcher: OperationTraceDispatching {
 
     static let tool = commandTool(
         name: "logic_project",
-        description: "Project lifecycle + read-only project state in Logic Pro. Commands: new, open, save, save_as, close, bounce, is_running, launch, quit, get_regions, export_plan, export_run, export_resume, audit, cleanup_plan, inspect_session, cleanup_apply. Params: open -> { path: String }; save_as -> { path: String }; close -> { saving?: \"yes\"|\"no\"|\"ask\" }; bounce/launch/quit -> {}; bounce requires confirmation and runs a pre-bounce project audit, returning `export_readiness_blocked` before opening the Bounce dialog if blockers such as `external_midi_regions_bounce_risk` are present; get_regions -> {} (returns { regions: [{ name, trackIndex, startBar, endBar, kind, rawHelp }], complete, scope, reason, returned_count }; Logic AX currently reports scope=visible_arrange_area and complete=false); export_plan -> { projects: [absolute .logicx], output_root: String, artifacts?: [bounce|stem|preview|variant], collision_policy?: fail_if_exists|skip_existing } dry-run only. Stem is narrower than the generic projects shape: it refuses unless exactly one currently scanned project has a fresh complete region inventory proving its populated tracks, and output_root is an existing directory; the Export panel must also expose that folder in its browser at execution. Stem filenames and output format are late-bound and unpromised. fail_if_exists examines only top-level non-directory entries with suffix wav|wave|aif|aiff|aifc|m4a|mp3, and it refuses if enumeration fails; skip_existing is refused for stem. export_run -> { ...same as export_plan, confirmed: Bool } GUARDED execution (re-plans, opens, verifies project identity by readback, drives the stem Export panel or bounces as appropriate, analyzes before/after-observed eligible stem outputs without guessing filename-to-track associations, records logic_pro_mcp_export_run.v1 with HC State A/B/C; never overwrites under fail_if_exists); export_resume -> { ...same as export_run } idempotent resume for known-path artifacts; it refuses stem runs because Logic assigns filenames only after export; audit -> read-only project/session audit JSON; cleanup_plan -> read-only serializable cleanup plan JSON; inspect_session -> { scope?: \"whole_project\"|\"selection\", domains?: [tracks|strips|associations|hierarchy|routing|color], allow_ui_navigation?: Bool, project_ref?: String, snapshot_id?: String } read-only logic_pro_mcp_session_population.v1 JSON built from the state cache alone: every requested domain carries coverage complete|partial|unavailable|unstable plus reasons, tracks/strips rows come with witnesses, and unread data is reported as unread rather than absent. A fresh report has an opaque snapshot_id. snapshot_retention reports whether its observed project bundle path permits retention; an unbound project remains readable but retained=false (project_identity_unobserved) and its ID cannot be looked up. Bound reports are retained for 60 seconds, with at most 8 reports of at most 2 MiB each in this process-local cache. snapshot_id alone returns the original report bytes and original capture interval, not a fresh observation; expired, evicted, cross-session or changed-project handles fail stale_snapshot without regenerating. Lookup cannot combine project_ref or override scope/domains/navigation. allow_ui_navigation=true is refused (State C not_implemented) in this increment; cleanup_apply -> { step_id: String, confirmed: Bool, names?: \"newA,newB\" (CSV aligned to the step's target track indices) | new_name?: String (single target) } executes ONE supported mutating cleanup-plan step (currently rename_* only) through the existing track.rename path so it inherits AX readback + Honest Contract State A/B/C. Fails closed (State C) when confirmed!=true, the step is unknown/unsupported/non-mutating, the audit shows stale/occluded inventory or a track readback gap, or rename names are missing/mismatched. Deletion steps are unsupported by construction and are always refused; others -> {}.",
+        description: "Project lifecycle + read-only project state in Logic Pro. Commands: new, open, save, save_as, close, bounce, is_running, launch, quit, get_regions, export_plan, export_run, export_resume, audit, cleanup_plan, inspect_session, cleanup_apply. Params: open -> { path: String }; save_as -> { path: String }; close -> { saving?: \"yes\"|\"no\"|\"ask\" }; bounce/launch/quit -> {}; bounce requires confirmation and runs a pre-bounce project audit, returning `export_readiness_blocked` before opening the Bounce dialog if blockers such as `external_midi_regions_bounce_risk` are present; get_regions -> {} (returns { regions: [{ name, trackIndex, startBar, endBar, kind, rawHelp }], complete, scope, reason, returned_count }; Logic AX currently reports scope=visible_arrange_area and complete=false); export_plan -> { projects: [absolute .logicx], output_root: String, artifacts?: [bounce|stem|preview|variant], collision_policy?: fail_if_exists|skip_existing } dry-run only. Stem is narrower than the generic projects shape: it refuses unless exactly one currently scanned project has a fresh complete region inventory proving its populated tracks, and output_root is an existing directory; the Export panel must also expose that folder in its browser at execution. Stem filenames and output format are late-bound and unpromised. fail_if_exists examines only top-level non-directory entries with suffix wav|wave|aif|aiff|aifc|m4a|mp3, and it refuses if enumeration fails; skip_existing is refused for stem. export_run -> { ...same as export_plan, confirmed: Bool } GUARDED execution (re-plans, opens, verifies project identity by readback, drives the stem Export panel or bounces as appropriate, analyzes before/after-observed eligible stem outputs without guessing filename-to-track associations, records logic_pro_mcp_export_run.v1 with HC State A/B/C; never overwrites under fail_if_exists); export_resume -> { ...same as export_run } idempotent resume for known-path artifacts; it refuses stem runs because Logic assigns filenames only after export; audit -> read-only project/session audit JSON; cleanup_plan -> read-only serializable cleanup plan JSON; inspect_session -> { scope?: \"whole_project\"|\"selection\", domains?: [tracks|strips|associations|hierarchy|routing|color], allow_ui_navigation?: Bool, project_ref?: String, snapshot_id?: String } read-only logic_pro_mcp_session_population.v1 JSON built from the state cache alone: every requested domain carries coverage complete|partial|unavailable|unstable plus reasons, tracks/strips rows come with witnesses, and unread data is reported as unread rather than absent. A fresh report has an opaque snapshot_id. snapshot_retention reports whether its observed project bundle path permits retention; an unbound project remains readable but retained=false (project_identity_unobserved) and its ID cannot be looked up. Bound reports are retained for 60 seconds, with at most 8 reports of at most 2 MiB each in this process-local cache. snapshot_id alone returns the original report bytes and original capture interval, not a fresh observation; expired, evicted, cross-session or changed-project handles fail stale_snapshot without regenerating. Lookup cannot combine project_ref or override scope/domains/navigation. allow_ui_navigation=true is refused (State C not_implemented) in this increment; cleanup_apply -> { step_id: String, confirmed: Bool, names?: [String] (exact names aligned to the step's target track indices) | \"newA,newB\" (legacy CSV) | new_name?: String (single target) } executes ONE supported mutating cleanup-plan step (currently rename_* only) through the existing track.rename path so it inherits AX readback + Honest Contract State A/B/C. Fails closed (State C) when confirmed!=true, the step is unknown/unsupported/non-mutating, the audit shows stale/occluded inventory or a track readback gap, or rename names are missing/mismatched. Deletion steps are unsupported by construction and are always refused; others -> {}.",
         commandDescription: "Project command to execute"
     )
 
@@ -764,7 +764,7 @@ struct ProjectDispatcher: OperationTraceDispatching {
     /// Execute a rename cleanup step through the existing `track.rename` path so
     /// it inherits AX readback + HC State A/B/C. The step's `targetIdentifier`
     /// is `tracks:<i0,i1,...>`; the caller supplies one new name per target via
-    /// `names` (CSV) or, for a single target, `new_name`. Mismatched counts fail
+    /// `names` (a string array or legacy CSV) or, for a single target, `new_name`. Mismatched counts fail
     /// closed before any write so a partial rename can't corrupt the session.
     private static func applyRenameStep(
         _ step: ProjectSessionAudit.CleanupPlanStep,
@@ -782,7 +782,14 @@ struct ProjectDispatcher: OperationTraceDispatching {
             )
         }
 
-        let names = cleanupApplyRenameNames(params, targetCount: targets.count)
+        guard let names = cleanupApplyRenameNames(params) else {
+            return cleanupApplyStateC(
+                .invalidParams,
+                stepID: step.id,
+                hint: "cleanup_apply: 'names' must be a string array or legacy CSV string; every array entry must be a string.",
+                extras: ["write_attempted": false]
+            )
+        }
         guard names.count == targets.count else {
             return cleanupApplyStateC(
                 .invalidParams,
@@ -799,6 +806,22 @@ struct ProjectDispatcher: OperationTraceDispatching {
                 stepID: step.id,
                 hint: "cleanup_apply: rename name #\(blankIdx + 1) for step '\(step.id)' is blank; every target needs a non-empty name."
             )
+        }
+
+        // Validate the whole input before the first child rename. Otherwise a
+        // known-invalid later name could leave earlier tracks already changed.
+        for (position, name) in names.enumerated() {
+            if let failure = TrackDispatcher.renameNameFailure(name) {
+                return cleanupApplyStateC(
+                    .invalidParams,
+                    stepID: step.id,
+                    hint: "cleanup_apply: rename name #\(position + 1) is invalid; no rename was attempted.",
+                    extras: [
+                        "write_attempted": false,
+                        "underlying": cleanupApplyResultText(failure),
+                    ]
+                )
+            }
         }
 
         var renamed: [[String: Any]] = []
@@ -1009,17 +1032,25 @@ struct ProjectDispatcher: OperationTraceDispatching {
         ))
     }
 
-    /// Resolve the new names for a rename step. `names` (CSV) takes precedence;
+    /// Resolve the new names for a rename step. `names` (array or CSV) takes precedence;
     /// `new_name` is a single-target convenience. Returns the parsed list as-is
-    /// (count is validated against the target count by the caller).
-    private static func cleanupApplyRenameNames(_ params: [String: Value], targetCount: Int) -> [String] {
-        if let array = params["names"]?.arrayValue {
-            return array.compactMap { $0.stringValue }
-        }
-        let csv = stringParam(params, "names")
-        if !csv.isEmpty {
-            return csv.split(separator: ",", omittingEmptySubsequences: false)
-                .map { $0.trimmingCharacters(in: .whitespaces) }
+    /// (count is validated against the target count by the caller). A malformed
+    /// array rejects the whole input rather than dropping an entry.
+    private static func cleanupApplyRenameNames(_ params: [String: Value]) -> [String]? {
+        if let raw = params["names"] {
+            if let array = raw.arrayValue {
+                var names: [String] = []
+                for value in array {
+                    guard let name = value.stringValue else { return nil }
+                    names.append(name)
+                }
+                return names
+            }
+            guard let csv = raw.stringValue else { return nil }
+            if !csv.isEmpty {
+                return csv.split(separator: ",", omittingEmptySubsequences: false)
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+            }
         }
         let single = stringParam(params, "new_name", "name")
         if !single.isEmpty {

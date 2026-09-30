@@ -114,6 +114,74 @@ private let headlessCleanupAuditFileReader = LogicProjectFileReader.Runtime(
 @Suite("Cleanup execution", .serialized)
 struct CleanupExecutionTests {
 
+@Test func malformedStructuredNamesCannotDiscardAnEntryAndRename() async throws {
+    let cache = StateCache()
+    let stepID = await seedDuplicateTracks(cache)
+    let channel = FakeRenameChannel { stateARename(name: $0) }
+    let router = await routerWith(channel)
+    let result = await ProjectDispatcher.handle(
+        command: "cleanup_apply",
+        params: [
+            "step_id": .string(stepID), "confirmed": .bool(true),
+            "names": .array([.string("Kick L"), .int(7), .string("Kick R")]),
+        ],
+        router: router, cache: cache,
+        cleanupAuditFileReader: headlessCleanupAuditFileReader
+    )
+    #expect(try #require(result.isError))
+    let body = try #require(sharedJSONObject(sharedToolText(result)))
+    #expect(body["error"] as? String == "invalid_params")
+    let attempted = try #require(body["write_attempted"] as? Bool)
+    #expect(!attempted)
+    let calls = await channel.calls()
+    #expect(calls.isEmpty)
+}
+
+@Test func invalidLaterNameRefusesBeforeTheFirstRename() async throws {
+    let cache = StateCache()
+    let stepID = await seedDuplicateTracks(cache)
+    let channel = FakeRenameChannel { stateARename(name: $0) }
+    let router = await routerWith(channel)
+    let result = await ProjectDispatcher.handle(
+        command: "cleanup_apply",
+        params: [
+            "step_id": .string(stepID), "confirmed": .bool(true),
+            "names": .array([.string("Kick L"), .string(String(repeating: "x", count: 129))]),
+        ],
+        router: router, cache: cache,
+        cleanupAuditFileReader: headlessCleanupAuditFileReader
+    )
+    #expect(try #require(result.isError))
+    let body = try #require(sharedJSONObject(sharedToolText(result)))
+    #expect(body["error"] as? String == "invalid_params")
+    let attempted = try #require(body["write_attempted"] as? Bool)
+    #expect(!attempted)
+    let calls = await channel.calls()
+    #expect(calls.isEmpty)
+}
+
+@Test func structuredNamesPreserveCommasQuotesUnicodeAndWhitespace() async throws {
+    let cache = StateCache()
+    let stepID = await seedDuplicateTracks(cache)
+    let channel = FakeRenameChannel { stateARename(name: $0) }
+    let router = await routerWith(channel)
+    let names = [" 킥, \"왼쪽\" ", "Bass,右"]
+    let result = await ProjectDispatcher.handle(
+        command: "cleanup_apply",
+        params: [
+            "step_id": .string(stepID), "confirmed": .bool(true),
+            "names": .array(names.map(Value.string)),
+        ],
+        router: router, cache: cache,
+        cleanupAuditFileReader: headlessCleanupAuditFileReader
+    )
+    let isError = try #require(result.isError)
+    #expect(!isError)
+    let calls = await channel.calls()
+    #expect(calls.map(\.name) == names)
+    #expect(calls.map(\.index) == ["0", "1"])
+}
+
 @Test func testCleanupApplyRenameReachesStateAOnVerifiedReadback() async throws {
     let cache = StateCache()
     let stepID = await seedDuplicateTracks(cache)
