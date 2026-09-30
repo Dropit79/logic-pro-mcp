@@ -15,6 +15,7 @@ named. A test that only ever sees the repository in its correct state would repe
 level up, so every case below writes a Formula and a sums file and requires a specific exit code.
 """
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -51,49 +52,23 @@ def _run(formula_text, sums_text, sums_name="sums.txt"):
 
 
 FAKE_GH = r"""#!/usr/bin/env bash
-# A `gh` that answers one status, so the classification can be tested without having a 403.
-#
-# `releases/latest` is answered SEPARATELY. The 404 branch asks which release is newest in order to
-# tell "preparing the next release" from "pointing backwards at a missing one", and a fake that
-# gave both questions the same answer could not distinguish the two cases either -- which is how
-# the first version of this fixture turned a real behaviour change into two unexplained failures.
 if [ "$1" = "api" ]; then
-  if [ -n "${FAKE_STDERR:-}" ]; then printf '%s
-' "$FAKE_STDERR" >&2; fi
+  if [ -n "${FAKE_STDERR:-}" ]; then printf '%s\n' "$FAKE_STDERR" >&2; fi
+  status="${FAKE_STATUS:-}"
+  body="$FAKE_RELEASE_BODY"
   case "${2:-}" in
-    */releases/latest)
-      if [ -z "${FAKE_LATEST_TAG:-}" ]; then
-        printf 'HTTP/2.0 %s Fake
-' "${FAKE_LATEST_STATUS:-404}"
-        printf 'content-type: application/json
-
-'
-        printf '{}
-'
-        exit 1
-      fi
-      printf 'HTTP/2.0 200 Fake
-'
-      printf 'content-type: application/json
-
-'
-      printf '{"tag_name": "%s"}
-' "$FAKE_LATEST_TAG"
-      exit 0 ;;
+    */releases/latest) status="${FAKE_LATEST_STATUS:-200}"; body="$FAKE_LATEST_BODY" ;;
+    */releases/tags/v"$FAKE_SOURCE_VERSION")
+      if [ "$FAKE_SOURCE_VERSION" != "$FAKE_FORMULA_VERSION" ]; then
+        status="$FAKE_SOURCE_STATUS"; body="$FAKE_SOURCE_BODY"
+      fi ;;
   esac
-  if [ -n "${FAKE_STATUS:-}" ]; then
-    printf 'HTTP/2.0 %s Fake
-' "$FAKE_STATUS"
-    printf 'content-type: application/json
-
-'
-    printf '{}
-'
+  if [ -n "$status" ]; then
+    printf 'HTTP/2.0 %s Fake\ncontent-type: application/json\n\n%s\n' "$status" "$body"
   fi
-  if [ "${FAKE_STATUS:-}" = "200" ]; then exit 0; fi
+  [ "$status" = "200" ] && exit 0
   exit 1
 fi
-# `gh release download` -- only reached after a 200. Write the sums the case asked for.
 if [ -n "${FAKE_SUMS:-}" ]; then
   while [ "$#" -gt 0 ]; do
     if [ "$1" = "-O" ]; then printf '%s' "$FAKE_SUMS" > "$2"; exit 0; fi
@@ -104,8 +79,15 @@ exit 1
 """
 
 
+def _release(tag, draft=False):
+    import json
+    return json.dumps({"tag_name": tag, "draft": draft, "prerelease": False,
+                       "published_at": None if draft else "2026-09-28T13:26:55Z"})
+
+
 def _run_network(formula_text, status, sums=None, stderr="", release_prep=False,
-                 latest_tag=None, latest_status=None):
+                 latest_tag=None, latest_status=None, source_version=None,
+                 source_status=404, draft=False, source_draft=False):
     """Run the guard's NETWORK branch against a fake `gh`; return (exit code, output).
 
     No local sums argument, so the rule takes the branch that asks GitHub. The fake is what makes
@@ -115,12 +97,23 @@ def _run_network(formula_text, status, sums=None, stderr="", release_prep=False,
         root = Path(tmp)
         formula = root / "logic-pro-mcp.rb"
         formula.write_text(formula_text, encoding="utf-8")
+        version = re.search(r'version "([^"]+)"', formula_text).group(1)
+        source_version = source_version or version
+        config = root / "ServerConfig.swift"
+        config.write_text(f'static let serverVersion = "{source_version}"\n', encoding="utf-8")
         fake = root / "gh"
         fake.write_text(FAKE_GH, encoding="utf-8")
         fake.chmod(0o755)
         env = dict(os.environ,
                    LPM_FORMULA_PATH=str(formula),
                    LPM_GH_BIN=str(fake),
+                   LPM_SERVER_CONFIG_PATH=str(config),
+                   FAKE_FORMULA_VERSION=version,
+                   FAKE_SOURCE_VERSION=source_version,
+                   FAKE_RELEASE_BODY=_release("v" + version, draft),
+                   FAKE_SOURCE_STATUS=str(source_status),
+                   FAKE_SOURCE_BODY=_release("v" + source_version, source_draft),
+                   FAKE_LATEST_BODY=_release(latest_tag or "v" + version),
                    LPM_FORMULA_RETRY_DELAY="0",
                    FAKE_STATUS=str(status),
                    FAKE_STDERR=stderr)
@@ -142,8 +135,11 @@ def _run_network(formula_text, status, sums=None, stderr="", release_prep=False,
 
 def main():
     failures = []
+    checks = 0
 
     def check(name, condition, detail):
+        nonlocal checks
+        checks += 1
         if not condition:
             failures.append(f"{name}: {detail}")
 
@@ -211,51 +207,40 @@ def main():
     rc, out = _run_network(formula, "", stderr="dial tcp: lookup api.github.com: no such host")
     check("no status is not a pass", rc == 1, f"exit {rc}: {out.strip()[:200]}")
 
-    # 404 on an ordinary run: the Formula (3.15.0) is BEHIND the newest release (3.16.0), so it
-    # points backwards at something that is not there -- the #775 state.
-    rc, out = _run_network(formula, 404, latest_tag="v3.16.0")
-    check("404 fails when the Formula is behind the newest release", rc == 1,
+    # The Formula must always name a published archive, even during release preparation.
+    for version in ("3.15.0", "3.17.0"):
+        for override in (False, True):
+            rc, out = _run_network(_formula(version, GOOD), 404,
+                                   latest_tag="v3.16.0", release_prep=override)
+            check(f"missing Formula {version}, override={override} is refused", rc == 1,
+                  f"exit {rc}: {out.strip()[:200]}")
+
+    # Source preparation leaves the Formula on the newest published release.
+    for latest in ("v3.15.0", "3.15.0"):
+        rc, out = _run_network(formula, 200, sums=sums, source_version="3.16.0",
+                               source_status=404, latest_tag=latest)
+        check("published Formula survives unpublished source", rc == 0,
+              f"exit {rc}: {out.strip()[:200]}")
+    rc, out = _run_network(formula, 200, sums=sums, source_version="3.16.0",
+                           source_status=200, source_draft=True)
+    check("draft source permits published Formula", rc == 0, f"exit {rc}: {out.strip()[:200]}")
+    for status in (200, 403, 502, ""):
+        rc, out = _run_network(formula, 200, sums=sums, source_version="3.16.0",
+                               source_status=status)
+        check(f"lagging Formula with source status {status} is refused", rc == 1,
+              f"exit {rc}: {out.strip()[:200]}")
+    rc, out = _run_network(formula, 200, sums=sums, source_version="3.17.0",
+                           latest_tag="v3.16.0")
+    check("Formula older than newest published release is refused", rc == 1,
           f"exit {rc}: {out.strip()[:200]}")
-    check("and says which release is newest", "3.16.0" in out, out.strip()[:200])
-
-    # THE CASE THAT UNBLOCKS A RELEASE. The Formula names a version NEWER than anything published,
-    # which is what the version-bump pull request every release starts with looks like. Until
-    # 2026-09-18 this required `LPM_FORMULA_RELEASE_PREPARATION=1` from a caller, and nothing under
-    # .github set it -- so `formula` went red, `build` needs `formula`, and the ruleset requires
-    # `build`. The guard made the release it guards unshippable. It is derived now.
-    rc, out = _run_network(_formula("3.17.0", GOOD), 404, latest_tag="v3.16.0")
-    check("404 on a version newer than the newest release does not fail", rc == 0,
+    rc, out = _run_network(formula, 200, sums=sums, source_version="3.16.0",
+                           latest_status=403)
+    check("unreadable newest release is refused", rc == 1, f"exit {rc}: {out.strip()[:200]}")
+    rc, out = _run_network(formula, 200, sums=sums, draft=True)
+    check("a draft Formula release is refused", rc == 1, f"exit {rc}: {out.strip()[:200]}")
+    rc, out = _run_network(formula, 200, sums=sums, source_version="3.9.0")
+    check("Formula newer than source is refused numerically", rc == 1,
           f"exit {rc}: {out.strip()[:200]}")
-    check("and says it compared nothing", "NOT COMPARED" in out, out.strip()[:200])
-    check("and it needed no env var to work that out",
-          "LPM_FORMULA_RELEASE_PREPARATION" not in out, out.strip()[:200])
-
-    # A tag with no `v` prefix must compare the same way -- the prefix is stripped, not assumed.
-    rc, out = _run_network(_formula("3.17.0", GOOD), 404, latest_tag="3.16.0")
-    check("a latest tag without a v prefix is still compared", rc == 0,
-          f"exit {rc}: {out.strip()[:200]}")
-
-    # `sort -V`, not string order: 3.9.0 must not read as newer than 3.16.0.
-    rc, out = _run_network(_formula("3.9.0", GOOD), 404, latest_tag="v3.16.0")
-    check("3.9.0 is not newer than 3.16.0", rc == 1, f"exit {rc}: {out.strip()[:200]}")
-
-    # Equal versions: the release exists under that name or the 404 would not have happened, so
-    # equality means something else is wrong and must not be waved through as preparation.
-    rc, out = _run_network(formula, 404, latest_tag="v3.15.0")
-    check("a version equal to the newest release still fails", rc == 1,
-          f"exit {rc}: {out.strip()[:200]}")
-
-    # Could not read the newest release either. "Could not ask" is not "this is fine" -- the same
-    # rule the 401/403/429 cases enforce, applied to the second question.
-    rc, out = _run_network(_formula("3.17.0", GOOD), 404, latest_status=403)
-    check("an unreadable latest release is not a pass", rc == 1,
-          f"exit {rc}: {out.strip()[:200]}")
-
-    # The explicit override still works, for a caller that knows something the versions cannot say.
-    rc, out = _run_network(formula, 404, latest_tag="v3.16.0", release_prep=True)
-    check("the explicit override is still honoured", rc == 0, f"exit {rc}: {out.strip()[:200]}")
-    check("the override does not claim the hash is right", "NOT" in out,
-          f"it must say it confirmed nothing: {out.strip()[:200]}")
 
     # 200 and the manifest agrees -- the whole path, fake `gh` and all.
     rc, out = _run_network(formula, 200, sums=f"{GOOD}  {ASSET}\n")
@@ -277,8 +262,7 @@ def main():
         for f in failures:
             print(f"FAIL {f}")
         return 1
-    print("25 case(s) pass: the guard catches a stale hash, refuses what it cannot read, and no "
-          "longer reads an auth, rate-limit or server failure as 'not published yet'")
+    print(f"{checks} checks pass: published Formula hashes and bounded source preparation")
     return 0
 
 

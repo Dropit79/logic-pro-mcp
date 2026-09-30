@@ -40,16 +40,10 @@ private func latestChangelogReleaseHeading() throws -> ChangelogReleaseHeading? 
     return nil
 }
 
-/// Prevents the kind of drift we cleaned up in the v2.2 census:
-/// ServerConfig said 2.2.0 while Formula was 2.1.0 and manifest/install.sh
-/// were pinned to v2.0.0. Any future version bump has to touch all four
-/// artefacts or this test fails.
+/// Source packaging follows the candidate version. Homebrew keeps the newest
+/// published archive until that candidate is published and its checksum is available.
 @Test func testServerVersionMatchesPackagingArtefacts() throws {
     let sourceVersion = ServerConfig.serverVersion
-    #expect(
-        sourceVersion == "3.18.0",
-        "version surfaces must match the published stable release — bump all packaging artefacts together"
-    )
 
     let manifest = try readRepoFile("manifest.json")
     #expect(
@@ -62,10 +56,29 @@ private func latestChangelogReleaseHeading() throws -> ChangelogReleaseHeading? 
     )
 
     let formula = try readRepoFile("Formula/logic-pro-mcp.rb")
-    #expect(
-        formula.contains("version \"\(sourceVersion)\""),
-        "Formula/logic-pro-mcp.rb version must match ServerConfig.serverVersion=\(sourceVersion)"
-    )
+    let versionPattern = try NSRegularExpression(pattern: #"(?m)^\s*version\s+"([0-9]+\.[0-9]+\.[0-9]+)"$"#)
+    let formulaRange = NSRange(formula.startIndex..<formula.endIndex, in: formula)
+    let versionMatch = try #require(versionPattern.firstMatch(in: formula, range: formulaRange))
+    let versionRange = try #require(Range(versionMatch.range(at: 1), in: formula))
+    let formulaVersion = String(formula[versionRange])
+    if formulaVersion != sourceVersion {
+        // Use the same publication evidence as the existing Formula CI job. Offline
+        // version arithmetic cannot establish whether a candidate has been published.
+        let check = Process()
+        check.executableURL = URL(fileURLWithPath: "/bin/bash")
+        check.arguments = [repositoryRootURL().appendingPathComponent("Scripts/ci-verify-formula-sha.sh").path]
+        check.currentDirectoryURL = repositoryRootURL()
+        let output = Pipe()
+        check.standardOutput = output
+        check.standardError = output
+        try check.run()
+        let evidence = output.fileHandleForReading.readDataToEndOfFile()
+        check.waitUntilExit()
+        #expect(
+            check.terminationStatus == 0,
+            "Formula may lag only on the newest published archive while source is unpublished: \(String(decoding: evidence, as: UTF8.self))"
+        )
+    }
 
     let installScript = try readRepoFile("Scripts/install.sh")
     #expect(
