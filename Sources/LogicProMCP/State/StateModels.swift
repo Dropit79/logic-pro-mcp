@@ -32,7 +32,8 @@ struct TransportState: Sendable, Codable {
     var isPlaying: Bool = false
     var isRecording: Bool = false
     var isCycleEnabled: Bool = false
-    var isMetronomeEnabled: Bool = false
+    /// Nil means the metronome control was absent or its AX value could not be read.
+    var isMetronomeEnabled: Bool? = nil
     var tempo: Double = 120.0
     /// A display value only. Its legacy default is not an AX observation; consult
     /// `positionReadback` before treating it as evidence of a landed position.

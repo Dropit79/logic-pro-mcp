@@ -675,6 +675,54 @@ private func liveTransportJSON(
     #expect((object["observed_enabled"] as? Bool)!)
 }
 
+@Test func issue1058MIDIMetronomeUnavailableReadbackStaysUnverified() async throws {
+    for (before, after, expectedReason) in [
+        (nil, nil, "readback_unavailable"),
+        (false, nil, "readback_unavailable"),
+        (false, false, "readback_mismatch"),
+        (false, true, nil),
+    ] as [(Bool?, Bool?, String?)] {
+        let router = ChannelRouter()
+        let ax = SequencedTransportReadbackChannel(
+            toggleResult: .error(HonestContract.encodeStateC(
+                error: .elementNotFound, hint: "metronome checkbox absent"
+            )),
+            transportStates: [
+                TransportState(isMetronomeEnabled: before, lastUpdated: Date()),
+                TransportState(isMetronomeEnabled: after, lastUpdated: Date()),
+            ]
+        )
+        let midi = StaticResultChannel(
+            id: .midiKeyCommands,
+            results: ["transport.toggle_metronome": .success(HonestContract.encodeStateB(
+                reason: .readbackUnavailable,
+                extras: ["method": "midi_key_command"]
+            ))]
+        )
+        await router.register(ax)
+        await router.register(midi)
+        let result = await TransportDispatcher.handle(
+            command: "toggle_metronome", params: [:], router: router, cache: StateCache()
+        )
+        let body = try #require(parseDispatcherObject(dispatcherText(result)))
+        if let expectedReason {
+            #expect(try #require(body["reason"] as? String) == expectedReason)
+        } else {
+            #expect(!body.keys.contains("reason"))
+        }
+        let verified = try #require(body["verified"] as? Bool)
+        if expectedReason == nil {
+            #expect(verified)
+        } else {
+            #expect(!verified)
+        }
+        #expect(body["verification_source"] as? String == "transport_state")
+        if expectedReason == "readback_unavailable" {
+            #expect(body["observed_enabled"] == nil)
+        }
+    }
+}
+
 @Test func testTransportDispatcherGotoPositionReturnsErrorWhenTransportReadbackDoesNotMatch() async throws {
     let router = ChannelRouter()
     let mismatchedPosition = TransportState(

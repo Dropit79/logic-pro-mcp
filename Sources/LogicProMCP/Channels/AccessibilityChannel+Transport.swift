@@ -27,6 +27,9 @@ extension AccessibilityChannel {
             return .error("Cannot locate transport bar")
         }
         var state = AXValueExtractors.extractTransportState(from: transport, runtime: runtime.ax)
+        // The extractor also sees legacy buttons; only the control-bar checkbox is a
+        // reliable metronome observation for this readback.
+        state.isMetronomeEnabled = nil
         // No control bar means every one of these reads resolved to nil before, so skipping them
         // leaves the same state — an unreadable bar is not a bar whose controls read false.
         if let controlBar {
@@ -3482,6 +3485,24 @@ extension AccessibilityChannel {
                     ]) { _, new in new }
                 ))
             }
+            // A delivered press may have changed this toggle before AX reports its new value.
+            // AXConfirm or a later channel could turn Play/Record back again. Only an action
+            // that reported no delivery may advance to the next strategy.
+            let observed = controlBarCheckboxValue(cb, runtime: runtime)
+            return .error(HonestContract.encodeStateC(
+                error: .readbackMismatch,
+                hint: "control-bar checkbox '\(english)' did not read as desired=\(desired) after \(strategy.name). "
+                    + "The press was delivered and may have landed with the readback lagging; "
+                    + "read the control before retrying.",
+                extras: baseExtras.merging([
+                    "observed": observed as Any? ?? NSNull(),
+                    "action": strategy.name,
+                    "attempts": attempts,
+                    "write_attempted": true,
+                    "safe_to_retry": false,
+                    "fallback_unsafe": true
+                ]) { _, new in new }
+            ))
         }
 
         let observed = controlBarCheckboxValue(cb, runtime: runtime) as Any

@@ -18,6 +18,9 @@
 # fails the suite. That is the point: until the tag exists, a dated release heading claims something that
 # did not happen. Leave the notes under ## [Unreleased] and cut all three together, here.
 #
+# Formula and server.json stay on the newest published archive during this cut.
+# After publication, move their version and checksum references together in a pull request.
+#
 # Usage:
 #   Scripts/release-stable.sh v3.4.6
 #   DRY_RUN=1 Scripts/release-stable.sh v3.4.6
