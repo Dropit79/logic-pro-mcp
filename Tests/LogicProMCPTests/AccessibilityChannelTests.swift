@@ -1831,7 +1831,8 @@ private final class MarkerWindowReadSequence: @unchecked Sendable {
     decoder.dateDecodingStrategy = .iso8601
     let state = try decoder.decode(TransportState.self, from: Data(result.message.utf8))
     #expect(state.isCycleEnabled)
-    #expect(state.isMetronomeEnabled == true)
+    let metronomeEnabled = try #require(state.isMetronomeEnabled)
+    #expect(metronomeEnabled)
     #expect(state.tempo == 127.0)
 }
 
@@ -1864,8 +1865,16 @@ private final class MarkerWindowReadSequence: @unchecked Sendable {
         let result = await channel.execute(operation: "transport.get_state", params: [:])
         #expect(result.isSuccess)
         let body = decodeAccessibilityJSON(result.message)
-        #expect(body["isMetronomeEnabled"] as? Bool == expected)
-        #expect(body.keys.contains("isMetronomeEnabled") == (expected != nil))
+        if let expected {
+            let observed = try #require(body["isMetronomeEnabled"] as? Bool)
+            if expected {
+                #expect(observed)
+            } else {
+                #expect(!observed)
+            }
+        } else {
+            #expect(!body.keys.contains("isMetronomeEnabled"))
+        }
 
         let router = ChannelRouter()
         await router.register(channel)
@@ -1876,8 +1885,16 @@ private final class MarkerWindowReadSequence: @unchecked Sendable {
         let envelope = try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
         let data = try #require(envelope["data"] as? [String: Any])
         let state = try #require(data["state"] as? [String: Any])
-        #expect(state["isMetronomeEnabled"] as? Bool == expected)
-        #expect(state.keys.contains("isMetronomeEnabled") == (expected != nil))
+        if let expected {
+            let observed = try #require(state["isMetronomeEnabled"] as? Bool)
+            if expected {
+                #expect(observed)
+            } else {
+                #expect(!observed)
+            }
+        } else {
+            #expect(!state.keys.contains("isMetronomeEnabled"))
+        }
     }
 }
 

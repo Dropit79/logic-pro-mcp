@@ -705,8 +705,17 @@ private func liveTransportJSON(
             command: "toggle_metronome", params: [:], router: router, cache: StateCache()
         )
         let body = try #require(parseDispatcherObject(dispatcherText(result)))
-        #expect(body["reason"] as? String == expectedReason)
-        #expect(body["verified"] as? Bool == (expectedReason == nil))
+        if let expectedReason {
+            #expect(try #require(body["reason"] as? String) == expectedReason)
+        } else {
+            #expect(!body.keys.contains("reason"))
+        }
+        let verified = try #require(body["verified"] as? Bool)
+        if expectedReason == nil {
+            #expect(verified)
+        } else {
+            #expect(!verified)
+        }
         #expect(body["verification_source"] as? String == "transport_state")
         if expectedReason == "readback_unavailable" {
             #expect(body["observed_enabled"] == nil)
