@@ -274,12 +274,28 @@ enum SessionPopulationObservation {
 
     // MARK: - Report
 
+    struct SnapshotRetention: Encodable, Sendable {
+        let retained: Bool
+        let reason: String?
+        let ttlSeconds = StateCache.sessionCaptureLifetimeSeconds
+        let capacity = StateCache.sessionCaptureLimit
+        let maxBytes = StateCache.sessionCaptureByteLimit
+
+        enum CodingKeys: String, CodingKey {
+            case retained, reason, capacity
+            case ttlSeconds = "ttl_seconds"
+            case maxBytes = "max_bytes"
+        }
+    }
+
     struct Report: Encodable, Sendable {
         let schema: String
         let readOnly: Bool
         /// Opaque identity of this immutable capture; inspect_session retains the original
         /// report for bounded lookup within this cache, never regenerating it by revision.
         let snapshotId: String
+        /// Set by the dispatcher after deciding whether this report can be retained.
+        var snapshotRetention: SnapshotRetention? = nil
         let scope: Scope
         let requestedDomains: [Domain]
         let project: ProjectSection
@@ -298,6 +314,7 @@ enum SessionPopulationObservation {
             case schema
             case readOnly = "read_only"
             case snapshotId = "snapshot_id"
+            case snapshotRetention = "snapshot_retention"
             case scope
             case requestedDomains = "requested_domains"
             case project

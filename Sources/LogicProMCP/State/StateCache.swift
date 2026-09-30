@@ -7,7 +7,8 @@ actor StateCache {
     /// refresh on lookup and cannot be looked up in a different cache or project epoch.
     static let sessionCaptureLimit = 8
     static let sessionCaptureByteLimit = 2 * 1024 * 1024
-    static let sessionCaptureLifetime: Duration = .seconds(60)
+    static let sessionCaptureLifetimeSeconds = 60
+    static let sessionCaptureLifetime: Duration = .seconds(sessionCaptureLifetimeSeconds)
     private struct RetainedSessionReport: Sendable {
         let id: String
         let json: String
@@ -23,11 +24,17 @@ actor StateCache {
         self.sessionCaptureNow = sessionCaptureNow
     }
 
+    /// Names can repeat between documents; they cannot substitute for an observed bundle path.
+    static func sessionReportHasBoundPath(_ path: String?) -> Bool {
+        canonicalProjectPath(path) != nil
+    }
+
     func retainSessionReport(id: String, json: String,
                              capturedEpoch: UInt64, capturedPath: String?) -> Bool {
         let now = sessionCaptureNow()
         sessionReports.removeAll { $0.expiresAt <= now || $0.projectEpoch != projectEpoch }
-        guard json.utf8.count <= Self.sessionCaptureByteLimit,
+        guard Self.sessionReportHasBoundPath(capturedPath),
+              json.utf8.count <= Self.sessionCaptureByteLimit,
               capturedEpoch == projectEpoch, capturedPath == project.filePath else { return false }
         if sessionReports.count == Self.sessionCaptureLimit { sessionReports.removeFirst() }
         sessionReports.append(RetainedSessionReport(

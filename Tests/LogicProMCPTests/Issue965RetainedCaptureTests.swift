@@ -139,6 +139,66 @@ struct Issue965RetainedCaptureTests {
         }
     }
 
+    @Test func pathlessProjectTransitionsInvalidateRetainedReportsEvenWhenTheyReturn() async throws {
+        try await FeatureFlags.withAdr002TargetRefForTests(false) {
+            let cache = StateCache()
+            await cache.updateProject(ProjectInfo(name: "A", filePath: nil))
+            await cache.updateTracks([TrackState(id: 0, name: "Track A", type: .audio)])
+            let original = await inspect(cache)
+            let originalError = try #require(original.isError)
+            #expect(!originalError)
+            let body = try #require(sharedJSONObject(sharedToolText(original)))
+            let retention = try #require(body["snapshot_retention"] as? [String: Any])
+            let retained = try #require(retention["retained"] as? Bool)
+            #expect(!retained)
+            #expect(retention["reason"] as? String == "project_identity_unobserved")
+            let snapshot = try id(original)
+            try stale(await inspect(cache, params: ["snapshot_id": .string(snapshot)]))
+            await cache.updateProject(ProjectInfo(name: "B", filePath: nil))
+            try stale(await inspect(cache, params: ["snapshot_id": .string(snapshot)]))
+            await cache.updateProject(ProjectInfo(name: "A", filePath: nil))
+            try stale(await inspect(cache, params: ["snapshot_id": .string(snapshot)]))
+        }
+    }
+
+    @Test func aPathlessTransitionDuringCaptureCannotBeRetained() async throws {
+        try await FeatureFlags.withAdr002TargetRefForTests(false) {
+            let cache = StateCache()
+            await cache.updateProject(ProjectInfo(name: "A", filePath: nil))
+            // The real producer observes A; the poller observes B before retention.
+            let reader = LogicProjectFileReader.Runtime.unavailable
+            let capture = await SessionPopulationObservation.capture(
+                cache: cache, targetRegistry: nil, fileReader: reader)
+            await cache.updateProject(ProjectInfo(name: "B", filePath: nil))
+            let report = SessionPopulationObservation.build(request: .init(), capture: capture)
+            let json = try encodeJSONStrict(report, compact: true)
+            let retained = await cache.retainSessionReport(
+                id: report.snapshotId, json: json,
+                capturedEpoch: capture.projectEpoch, capturedPath: capture.project.filePath)
+            #expect(!retained)
+            let found = await cache.retainedSessionReport(id: report.snapshotId)
+            #expect(found == nil)
+        }
+    }
+
+    @Test func aRepeatedBoundProjectPollDoesNotEvictTheHistoricalReport() async throws {
+        try await FeatureFlags.withAdr002TargetRefForTests(false) {
+            let cache = await cache()
+            let original = await inspect(cache)
+            let snapshot = try id(original)
+            let body = try #require(sharedJSONObject(sharedToolText(original)))
+            let retention = try #require(body["snapshot_retention"] as? [String: Any])
+            let retained = try #require(retention["retained"] as? Bool)
+            #expect(retained)
+            #expect(retention["ttl_seconds"] as? Int == 60)
+            #expect(retention["capacity"] as? Int == 8)
+            #expect(retention["max_bytes"] as? Int == 2097152)
+            await cache.updateProject(ProjectInfo(name: "Fixture", filePath: "/tmp/Fixture.logicx"))
+            let retrieved = await inspect(cache, params: ["snapshot_id": .string(snapshot)])
+            #expect(sharedToolText(retrieved) == sharedToolText(original))
+        }
+    }
+
     private func stale(_ result: CallTool.Result) throws {
         let isError = try #require(result.isError)
         #expect(isError)
