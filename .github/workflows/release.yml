@@ -64,6 +64,8 @@ jobs:
         # Swift Testing APIs, and unsuppressed diagnostics can expand to
         # hundreds of megabytes before the actual test result is visible.
         # CI's coverage test already uses the same compiler flag.
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: swift test -Xswiftc -suppress-warnings --no-parallel
 
       - name: Detect release mode
