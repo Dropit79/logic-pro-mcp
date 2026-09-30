@@ -1831,8 +1831,54 @@ private final class MarkerWindowReadSequence: @unchecked Sendable {
     decoder.dateDecodingStrategy = .iso8601
     let state = try decoder.decode(TransportState.self, from: Data(result.message.utf8))
     #expect(state.isCycleEnabled)
-    #expect(state.isMetronomeEnabled)
+    #expect(state.isMetronomeEnabled == true)
     #expect(state.tempo == 127.0)
+}
+
+@Test func issue1058MetronomeReadDistinguishesAbsentUnreadableAndObservedValues() async throws {
+    for (hasCheckbox, value, expected) in [
+        (false, nil, nil),
+        (true, nil, nil),
+        (true, NSNumber(value: false), false),
+        (true, NSNumber(value: true), true),
+    ] as [(Bool, NSNumber?, Bool?)] {
+        let builder = FakeAXRuntimeBuilder()
+        let app = builder.element(10_580)
+        let window = builder.element(10_581)
+        let controlBar = builder.element(10_582)
+        let checkbox = builder.element(10_583)
+        builder.setAttribute(app, kAXMainWindowAttribute as String, window)
+        builder.setChildren(window, [controlBar])
+        builder.setAttribute(controlBar, kAXRoleAttribute as String, kAXGroupRole as String)
+        builder.setAttribute(controlBar, kAXDescriptionAttribute as String, "Control Bar")
+        builder.setChildren(controlBar, hasCheckbox ? [checkbox] : [])
+        if hasCheckbox {
+            builder.setAttribute(checkbox, kAXRoleAttribute as String, kAXCheckBoxRole as String)
+            builder.setAttribute(checkbox, kAXTitleAttribute as String, "Metronome")
+            if let value {
+                builder.setAttribute(checkbox, kAXValueAttribute as String, value)
+            }
+        }
+
+        let channel = makeAXBackedAccessibilityChannel(builder: builder, app: app)
+        let result = await channel.execute(operation: "transport.get_state", params: [:])
+        #expect(result.isSuccess)
+        let body = decodeAccessibilityJSON(result.message)
+        #expect(body["isMetronomeEnabled"] as? Bool == expected)
+        #expect(body.keys.contains("isMetronomeEnabled") == (expected != nil))
+
+        let router = ChannelRouter()
+        await router.register(channel)
+        let resource = try await ResourceHandlers.read(
+            uri: "logic://transport/state", cache: StateCache(), router: router
+        )
+        let text = try #require(resource.contents.first?.text)
+        let envelope = try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        let data = try #require(envelope["data"] as? [String: Any])
+        let state = try #require(data["state"] as? [String: Any])
+        #expect(state["isMetronomeEnabled"] as? Bool == expected)
+        #expect(state.keys.contains("isMetronomeEnabled") == (expected != nil))
+    }
 }
 
 @Test func testAccessibilityChannelControlBarToggleUsesAXPressAndPostsNoMouseEvents() async throws {

@@ -27,6 +27,9 @@ extension AccessibilityChannel {
             return .error("Cannot locate transport bar")
         }
         var state = AXValueExtractors.extractTransportState(from: transport, runtime: runtime.ax)
+        // The extractor also sees legacy buttons; only the control-bar checkbox is a
+        // reliable metronome observation for this readback.
+        state.isMetronomeEnabled = nil
         // No control bar means every one of these reads resolved to nil before, so skipping them
         // leaves the same state — an unreadable bar is not a bar whose controls read false.
         if let controlBar {

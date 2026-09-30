@@ -257,7 +257,7 @@ private func colourIsUnread(_ track: TrackState) -> Bool {
     #expect(state.isPlaying)
     #expect(state.isRecording)
     #expect(state.isCycleEnabled)
-    #expect(!state.isMetronomeEnabled)
+    #expect(state.isMetronomeEnabled == false)
     #expect(state.tempo == 128.5)
     #expect(state.position == "9.1.1.1")
     #expect(state.timePosition == "00:01:02.003")
@@ -423,7 +423,7 @@ private func colourIsUnread(_ track: TrackState) -> Bool {
 
     #expect(!(state.isRecording))
     #expect(state.isCycleEnabled)
-    #expect(state.isMetronomeEnabled)
+    #expect(state.isMetronomeEnabled == true)
     #expect(state.position == "17.2.1")
     #expect(state.timePosition == "01:02:03:04")
     #expect(state.tempo == 120.0)
