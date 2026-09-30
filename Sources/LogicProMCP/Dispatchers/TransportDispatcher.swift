@@ -914,7 +914,9 @@ struct TransportDispatcher: OperationTraceDispatching {
             return toolTextResult(result)
         }
         guard let beforeTransport,
-              let afterTransport = await liveTransportState(router: router, cache: cache) else {
+              let previousEnabled = beforeTransport.isMetronomeEnabled,
+              let afterTransport = await liveTransportState(router: router, cache: cache),
+              let observedEnabled = afterTransport.isMetronomeEnabled else {
             return toolTextResult(
                 HonestContract.addExtras(
                     ["verification_source": "transport_state"],
@@ -926,11 +928,11 @@ struct TransportDispatcher: OperationTraceDispatching {
 
         var extras = honestContractExtras(from: result.message)
         extras["verification_source"] = "transport_state"
-        extras["previous_enabled"] = beforeTransport.isMetronomeEnabled
-        extras["requested_enabled"] = !beforeTransport.isMetronomeEnabled
-        extras["observed_enabled"] = afterTransport.isMetronomeEnabled
+        extras["previous_enabled"] = previousEnabled
+        extras["requested_enabled"] = !previousEnabled
+        extras["observed_enabled"] = observedEnabled
 
-        if beforeTransport.isMetronomeEnabled != afterTransport.isMetronomeEnabled {
+        if previousEnabled != observedEnabled {
             return toolTextResult(HonestContract.encodeStateA(extras: extras))
         }
 

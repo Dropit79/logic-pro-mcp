@@ -14,40 +14,13 @@
 #   ci-verify-formula-sha.sh                       # fetch the named release from GitHub
 #   ci-verify-formula-sha.sh <SHA256SUMS.txt>      # compare against a local file (used by the test)
 #
-# `LPM_GH_BIN` overrides the `gh` binary, `LPM_FORMULA_RETRY_DELAY` the pause between retries, and
-# `LPM_FORMULA_RELEASE_PREPARATION=1` declares a run that is preparing a release; the self-test uses
-# all three.
+# Test seams: LPM_GH_BIN, LPM_FORMULA_RETRY_DELAY, LPM_FORMULA_PATH and
+# LPM_SERVER_CONFIG_PATH. The local sums argument checks only checksum agreement.
 #
-# `LPM_FORMULA_PATH` overrides which Formula is read; the self-test uses it.
-#
-# Exit 0 clean, 1 on mismatch or on any state where the answer could not be established, 2 if the
-# Formula could not be parsed.
-#
-# WHAT WAS WRONG HERE
-# -------------------
-# The lookup was `if ! gh release view "v$VERSION"; then ... exit 0`, which classified EVERY failure
-# of that command as "not published yet". An expired token, a 403, a rate limit, a DNS failure, a
-# 502 -- each one printed "this check becomes meaningful once the release exists" and exited 0. The
-# comment above it claimed fail-closed; the code was the opposite, and the one state it was written
-# for (a release-prep version bump) is indistinguishable from every state it was not.
-#
-# So the release is now looked up through `gh api -i`, and the decision is made on the HTTP STATUS
-# rather than on a human sentence:
-#
-#   200                       compare the hashes
-#   404, version is NEWER     NOT COMPARED (exit 0) -- a release is being prepared, derived from
-#                             the newest published release rather than declared by the caller
-#   404, version is not newer FAIL -- the Formula points backwards at a release that is missing
-#   401 403 429               FAIL -- could not ask, which is not an answer
-#   5xx, or no status at all  FAIL after a short bounded retry
-#
-# Release preparation used to require `LPM_FORMULA_RELEASE_PREPARATION=1` from the caller, and
-# NOTHING under .github ever set it -- so the version-bump pull request that every release starts
-# with could not pass `formula`, and `build` needs `formula`. The guard locked the door it guards.
-# It is derived now, by asking which release is newest; the variable remains as an explicit
-# override and the self-test drives both. A 404 on a version that is NOT newer still fails: the
-# committed Formula then points at a release nobody published, which is the state that
-# makes `brew install` fail.
+# The Formula always names a published stable archive. During source release preparation
+# it may remain at the newest published version; once the source version is published,
+# version and hash must move together. Unknown release states fail closed.
+# Exit 0 clean, 1 mismatch/unavailable evidence, 2 unparseable local input.
 set -uo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -93,83 +66,76 @@ else
   TMP=$(mktemp -d)
   trap 'rm -rf "$TMP"' EXIT
 
-  # Bounded, and only for the states that are actually transient. An auth failure retried three
-  # times is an auth failure; a retry loop over it only delays the same answer.
-  STATUS=""
-  for attempt in 1 2 3; do
-    RESP=$("$GH" api "repos/$SLUG/releases/tags/v$VERSION" -i 2>"$TMP/gh-err") || true
-    STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
-    case "$STATUS" in
-      5??|"")
-        if [ "$attempt" -lt 3 ]; then sleep "$RETRY_DELAY"; continue; fi ;;
-    esac
-    break
-  done
+  CONFIG="${LPM_SERVER_CONFIG_PATH:-$ROOT/Sources/LogicProMCP/Server/ServerConfig.swift}"
+  SOURCE_VERSION=$(sed -nE 's/.*static let serverVersion = "([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' "$CONFIG")
+  printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "invalid Formula version"; exit 2; }
+  printf '%s' "$SOURCE_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "could not read source version"; exit 2; }
 
-  case "$STATUS" in
-    200)
-      : ;;
-    404)
-      # A 404 is one of two very different things, and until 2026-09-18 this could only tell them
-      # apart if a caller SAID which -- through `LPM_FORMULA_RELEASE_PREPARATION=1`, which nothing
-      # under .github ever set. That made the version-bump pull request every release starts with
-      # unmergeable: `formula` went red, `build` needs it, and the ruleset requires `build`. The
-      # guard had locked the door it was guarding.
-      #
-      # The two cases are distinguishable without anyone declaring anything. If the Formula's
-      # version is NEWER than every published release, the release it names has not happened yet
-      # and this run is a preparation. If it is not newer, the Formula points backwards at a
-      # release that is missing, which is the #775 state and a real failure.
-      LATEST=""
-      LATEST_RESP=$("$GH" api "repos/$SLUG/releases/latest" -i 2>"$TMP/gh-latest-err") || true
-      LATEST_STATUS=$(printf '%s\n' "$LATEST_RESP" | head -1 | awk '{print $2}')
-      if [ "$LATEST_STATUS" = "200" ]; then
-        LATEST=$(printf '%s\n' "$LATEST_RESP" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"v\{0,1\}\([^"]*\)".*/\1/p' | head -1)
-      fi
-      if [ -z "$LATEST" ]; then
-        echo "v$VERSION has no published release (HTTP 404), and the latest release could not be"
-        echo "read either (HTTP ${LATEST_STATUS:-none}). 'Could not ask' is not 'this is fine'."
-        exit 1
-      fi
-      # `sort -V` decides it. Equal versions are NOT newer: the release exists under that name or
-      # the 404 above would not have happened, so equality here means something else is wrong.
-      NEWEST=$(printf '%s\n%s\n' "$VERSION" "$LATEST" | sort -V | tail -1)
-      if [ "$VERSION" != "$LATEST" ] && [ "$NEWEST" = "$VERSION" ]; then
-        echo "NOT COMPARED: the Formula names v$VERSION and the newest published release is"
-        echo "v$LATEST, so this tree is preparing a release that does not exist yet. Nothing was"
-        echo "compared. This is NOT confirmation that the pinned hash is right -- the candidate"
-        echo "tarball's own hash is what proves that, before publication."
-        exit 0
-      fi
-      if [ "${LPM_FORMULA_RELEASE_PREPARATION:-0}" = "1" ]; then
-        echo "NOT APPLICABLE: v$VERSION is not published and this run declared itself a release"
-        echo "preparation. Nothing was compared."
-        exit 0
-      fi
-      echo "v$VERSION has no published release (HTTP 404) and is not newer than the newest one,"
-      echo "v$LATEST, so the committed Formula points BACKWARDS at a release that is missing."
-      echo "brew install fails for everyone in this state."
-      exit 1 ;;
-    401|403|429)
-      echo "the release lookup answered HTTP $STATUS, so the Formula's hash could not be checked."
-      echo "That is a failure, not a pass: 'could not ask' and 'the answer was yes' are the same"
-      echo "exit code only if this rule lets them be."
-      sed -n '1,5p' "$TMP/gh-err" 2>/dev/null
-      exit 1 ;;
-    5??)
-      echo "the release lookup answered HTTP $STATUS on all 3 attempts, so nothing was checked."
-      echo "A server failure is a failure to ask, and this rule does not read that as an answer."
-      sed -n '1,5p' "$TMP/gh-err" 2>/dev/null
-      exit 1 ;;
-    "")
-      echo "the release lookup returned no HTTP status after 3 attempts, so nothing was checked."
-      sed -n '1,5p' "$TMP/gh-err" 2>/dev/null
-      exit 1 ;;
-    *)
-      echo "the release lookup answered HTTP $STATUS, which this rule does not read as an answer."
-      sed -n '1,5p' "$TMP/gh-err" 2>/dev/null
-      exit 1 ;;
-  esac
+  # Only transient transport/server failures are retried. Auth failures are not absence.
+  lookup() {
+    local endpoint="$1" attempt
+    for attempt in 1 2 3; do
+      RESP=$("$GH" api "repos/$SLUG/releases/$endpoint" -i 2>"$TMP/gh-err") || true
+      STATUS=$(printf '%s\n' "$RESP" | head -1 | awk '{print $2}')
+      case "$STATUS" in
+        5??|"") if [ "$attempt" -lt 3 ]; then sleep "$RETRY_DELAY"; continue; fi ;;
+      esac
+      break
+    done
+  }
+
+  # An authenticated lookup can return a draft with HTTP 200. That is not a
+  # published archive. Parse the response body rather than inferring publication from status.
+  release_state() {
+    printf '%s\n' "$RESP" | python3 -c '
+import json, re, sys
+try:
+    body = re.split(r"\r?\n\r?\n", sys.stdin.read(), maxsplit=1)[1]
+    release = json.loads(body)
+    version = release["tag_name"].removeprefix("v")
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version): raise ValueError("invalid tag")
+    if type(release["draft"]) is not bool or release["prerelease"] is not False:
+        raise ValueError("not a stable release")
+    if release["draft"]:
+        if release["published_at"] is not None: raise ValueError("draft has publication date")
+        state = "draft"
+    else:
+        if not isinstance(release["published_at"], str) or not release["published_at"]:
+            raise ValueError("missing publication date")
+        state = "published"
+    print(state, version)
+except (KeyError, IndexError, TypeError, ValueError):
+    sys.exit(1)
+'
+  }
+
+  lookup "tags/v$VERSION"
+  if [ "$STATUS" != "200" ]; then
+    echo "Formula v$VERSION has no confirmed published release (HTTP ${STATUS:-none}); its hash could not be checked."
+    exit 1
+  fi
+  STATE=$(release_state) || { echo "Formula release metadata could not be read"; exit 1; }
+  [ "$STATE" = "published $VERSION" ] || { echo "Formula v$VERSION does not name a published stable release"; exit 1; }
+
+  if [ "$VERSION" != "$SOURCE_VERSION" ]; then
+    NEWEST=$(printf '%s\n%s\n' "$VERSION" "$SOURCE_VERSION" | sort -V | tail -1)
+    [ "$NEWEST" = "$SOURCE_VERSION" ] || { echo "Formula v$VERSION is newer than source v$SOURCE_VERSION"; exit 1; }
+    lookup latest
+    [ "$STATUS" = "200" ] || { echo "latest release could not be read (HTTP ${STATUS:-none})"; exit 1; }
+    STATE=$(release_state) || { echo "latest release metadata could not be read"; exit 1; }
+    [ "$STATE" = "published $VERSION" ] || { echo "Formula v$VERSION is not the newest published stable release ($STATE)"; exit 1; }
+    lookup "tags/v$SOURCE_VERSION"
+    case "$STATUS" in
+      404) : ;;
+      200)
+        STATE=$(release_state) || { echo "source release metadata could not be read"; exit 1; }
+        [ "$STATE" = "draft $SOURCE_VERSION" ] || {
+          echo "source v$SOURCE_VERSION is published; update Formula version and SHA256 together"
+          exit 1
+        } ;;
+      *) echo "source release could not be checked (HTTP ${STATUS:-none})"; exit 1 ;;
+    esac
+  fi
 
   if ! "$GH" release download "v$VERSION" -p 'SHA256SUMS.txt' -O "$TMP/sums.txt" --clobber >/dev/null 2>&1; then
     echo "v$VERSION exists but its SHA256SUMS.txt could not be downloaded, so the Formula's hash"
