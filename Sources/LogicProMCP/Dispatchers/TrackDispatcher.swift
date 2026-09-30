@@ -21,6 +21,27 @@ struct TrackDispatcher: OperationTraceDispatching {
         case failure(String)
     }
 
+    /// Shared by scalar rename and cleanup preflight; neither path may truncate a name.
+    static func renameNameFailure(_ name: String) -> CallTool.Result? {
+        guard !name.isEmpty else {
+            return toolInvalidParamsResult(
+                "rename requires 'name' parameter",
+                extras: ["operation": "track.rename"]
+            )
+        }
+        guard name.count <= maxTrackNameLength else {
+            return toolInvalidParamsResult(
+                "rename 'name' must be \(maxTrackNameLength) characters or fewer",
+                extras: [
+                    "operation": "track.rename",
+                    "max_length": maxTrackNameLength,
+                    "actual_length": name.count,
+                ]
+            )
+        }
+        return nil
+    }
+
     static func handle(
         command: String,
         params: [String: Value],
@@ -359,22 +380,7 @@ struct TrackDispatcher: OperationTraceDispatching {
                 return result
             }
             let name = stringParam(params, "name")
-            guard !name.isEmpty else {
-                return toolInvalidParamsResult(
-                    "rename requires 'name' parameter",
-                    extras: ["operation": "track.rename"]
-                )
-            }
-            guard name.count <= maxTrackNameLength else {
-                return toolInvalidParamsResult(
-                    "rename 'name' must be \(maxTrackNameLength) characters or fewer",
-                    extras: [
-                        "operation": "track.rename",
-                        "max_length": maxTrackNameLength,
-                        "actual_length": name.count,
-                    ]
-                )
-            }
+            if let failure = renameNameFailure(name) { return failure }
             let traceID = await startTraceIfEnabled(command: command)
             let result = await withWriteBoundaryArmed(traceID) {
                 await router.route(

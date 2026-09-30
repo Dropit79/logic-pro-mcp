@@ -1,8 +1,8 @@
 class LogicProMcp < Formula
   desc "MCP server for Logic Pro — the missing API"
   homepage "https://github.com/MongLong0214/logic-pro-mcp"
-  # Single source of truth is Sources/LogicProMCP/Server/ServerConfig.swift
-  # (ServerConfig.serverVersion). Bump both together.
+  # Keep the newest published stable version here during source release preparation.
+  # After publication, update version and sha256 together from SHA256SUMS.txt.
   version "3.18.0"
   license "MIT"
 

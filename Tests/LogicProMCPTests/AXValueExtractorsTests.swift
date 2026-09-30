@@ -210,7 +210,7 @@ private func colourIsUnread(_ track: TrackState) -> Bool {
     #expect(!track.liveIdentityBacked)
 }
 
-@Test func testAXValueExtractorsBuildTransportStateFromButtonsAndTexts() {
+@Test func testAXValueExtractorsBuildTransportStateFromButtonsAndTexts() throws {
     let builder = FakeAXRuntimeBuilder()
     let transport = builder.element(1)
     let play = builder.element(2)
@@ -257,7 +257,8 @@ private func colourIsUnread(_ track: TrackState) -> Bool {
     #expect(state.isPlaying)
     #expect(state.isRecording)
     #expect(state.isCycleEnabled)
-    #expect(!state.isMetronomeEnabled)
+    let metronomeEnabled = try #require(state.isMetronomeEnabled)
+    #expect(!metronomeEnabled)
     #expect(state.tempo == 128.5)
     #expect(state.position == "9.1.1.1")
     #expect(state.timePosition == "00:01:02.003")
@@ -384,7 +385,7 @@ private func colourIsUnread(_ track: TrackState) -> Bool {
     #expect(track.type == .softwareInstrument)
 }
 
-@Test func testAXValueExtractorsTransportSupportsLoopClickAndHeuristicFields() {
+@Test func testAXValueExtractorsTransportSupportsLoopClickAndHeuristicFields() throws {
     let builder = FakeAXRuntimeBuilder()
     let transport = builder.element(30)
     let recordArm = builder.element(31)
@@ -423,7 +424,8 @@ private func colourIsUnread(_ track: TrackState) -> Bool {
 
     #expect(!(state.isRecording))
     #expect(state.isCycleEnabled)
-    #expect(state.isMetronomeEnabled)
+    let metronomeEnabled = try #require(state.isMetronomeEnabled)
+    #expect(metronomeEnabled)
     #expect(state.position == "17.2.1")
     #expect(state.timePosition == "01:02:03:04")
     #expect(state.tempo == 120.0)
