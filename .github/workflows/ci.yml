@@ -353,6 +353,8 @@ jobs:
         # refusals had never been observed; `Scripts/test_ci_coverage_gate.py` now drives all of
         # them against a fake `llvm-cov`. What stays here is running the tests, which is the one
         # thing a fixture cannot stand in for.
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           PROFRAW_DIR="$RUNNER_TEMP/logicpromcp-profraw"

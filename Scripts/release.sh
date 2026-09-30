@@ -4,9 +4,8 @@
 #
 # Produces a v-tagged GitHub release with an ADHOC-signed binary, aliased
 # `universal` / `arm64` tarballs (bytes identical for tap backward-compat),
-# SHA256SUMS.txt, and RELEASE-METADATA.json. Commits the Formula sha256 sync
-# *before* pushing the tag so `brew install` against `git checkout <tag>`
-# resolves correctly.
+# SHA256SUMS.txt, and RELEASE-METADATA.json. The Formula stays on its published
+# version until a post-publication pull request updates version and SHA256 together.
 #
 # Apple Developer ID is optional for this project. This script publishes the
 # historical ADHOC path for both stable tags and prerelease tags; the installer
@@ -179,43 +178,11 @@ echo "  Binary  SHA: $BINARY_SHA"
 echo "  Tarball SHA: $TARBALL_SHA"
 echo ""
 
-# 4. Patch Formula + commit BEFORE tag push (per round-5 review: tag must have the correct Formula SHA)
-if [ "$DRY_RUN" != "1" ]; then
-    # Replace any existing sha256 literal on the Formula line.
-    # Using awk to match only the sha256 line to avoid touching comments.
-    awk -v new="$TARBALL_SHA" '
-        /^[[:space:]]*sha256 "/ { sub(/"[0-9a-f]+"/, "\"" new "\"") }
-        { print }
-    ' Formula/logic-pro-mcp.rb > Formula/logic-pro-mcp.rb.tmp
-    mv Formula/logic-pro-mcp.rb.tmp Formula/logic-pro-mcp.rb
-
-    # Fail closed if the awk rewrite did not actually land the published
-    # tarball sha256 on the Formula (e.g. the sha256 literal format drifted so
-    # sub() matched nothing). A stale hash tags a Formula whose `brew install`
-    # fails checksum verification for every user (#22-class regression), so
-    # refuse to continue rather than push a tag that resolves to a bad hash.
-    grep -Fq "$TARBALL_SHA" Formula/logic-pro-mcp.rb || {
-        echo "Error: Formula/logic-pro-mcp.rb does not contain the published tarball sha256 after sync."
-        echo "  expected: $TARBALL_SHA"
-        echo "  The sha256 line format may have drifted; refusing to tag a release with a stale Formula hash."
-        exit 1
-    }
-fi
-
-run "git add Formula/logic-pro-mcp.rb"
-# Guard the commit so a re-run (Formula already at the correct sha, nothing
-# staged) is a no-op instead of aborting the whole script under `set -e`.
-run "git diff --cached --quiet || git commit -m 'release: $VERSION Formula sha256 sync
-
-Pre-tag Formula update so \`git checkout $VERSION\` resolves to the
-published universal tarball SHA.
-
-sha256: $TARBALL_SHA
-'"
+# 4. Keep the Formula on the last published archive. After publication, update
+# its version and SHA256 together in a pull request using SHA256SUMS.txt.
 
 # 5. Tag + push
 run "git tag $VERSION -m 'Release $VERSION' -m 'Live-qualified: $QUALIFIED'"
-run "git push origin main"
 run "git push origin $VERSION"
 
 # 6. Create GitHub release (tag push already triggered CI; this attaches artifacts)
