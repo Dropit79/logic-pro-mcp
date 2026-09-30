@@ -897,6 +897,13 @@ package struct QualificationRunner: Sendable {
             }
             let evidenceData = try Self.encoded(atlas.evidence)
             let evidencePath = atlasCase.evidenceFiles[0]
+            // Reserve this path consistently on case-sensitive and case-insensitive volumes.
+            guard !manifestEntries.contains(where: {
+                $0.path.caseInsensitiveCompare(evidencePath) == .orderedSame
+            }) else {
+                throw RunnerError.evidenceBindingMismatch(
+                    "evidence path \(evidencePath) is already present; the ADR-007 step cannot overwrite it")
+            }
             try evidenceData.write(to: outputDirectory.appendingPathComponent(evidencePath), options: .atomic)
             manifestEntries.append(.init(path: evidencePath,
                 sha256: SupportBundleBuilder.sha256(evidenceData), caseID: atlasCase.id,

@@ -172,9 +172,10 @@ enum AtlasQualification {
                     return .noBaselines(reason: "unsupported atlas capture source")
                 }
                 let locales: Set<String> = axis.locale == .koKR ? ["ko", "ko-KR"] : ["en", "en-US"]
+                let unknownVersions: Set<String> = ["", "observed", "unknown", "unspecified"]
                 guard locales.contains(pair.baseline.locale), locales.contains(pair.current.locale),
-                      !pair.baseline.logicVersion.isEmpty, !pair.current.logicVersion.isEmpty,
-                      pair.baseline.logicVersion != "observed", pair.current.logicVersion != "observed" else {
+                      !unknownVersions.contains(pair.baseline.logicVersion.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()),
+                      !unknownVersions.contains(pair.current.logicVersion.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) else {
                     return .noBaselines(reason: "atlas capture locale/version is unknown or mismatches its axis")
                 }
             }

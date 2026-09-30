@@ -130,6 +130,24 @@ struct Issue290AtlasEvidenceTests {
         #expect(QualificationRunner.evidenceShapeIsValid(empty.evidence))
     }
 
+    @Test func unknownAndUnspecifiedVersionsCannotSupportAPassingCase() throws {
+        let documents = try pairs()
+        let first = documents[0]
+        for version in ["unknown", "unspecified"] {
+            for changeBaseline in [false, true] {
+                let original = changeBaseline ? first.baseline : first.current
+                let changed = AXSnapshot.Document(logicVersion: version, locale: original.locale,
+                    scope: original.scope, capturedFrom: original.capturedFrom, root: original.root)
+                let pair = AtlasQualification.Pair(scope: first.scope,
+                    baseline: changeBaseline ? changed : first.baseline,
+                    current: changeBaseline ? first.current : changed)
+                let result = try retained([pair] + documents.dropFirst())
+                #expect(result.qualificationCase.status == .failed)
+                #expect(!result.qualificationCase.verified)
+            }
+        }
+    }
+
     @Test func anUnarmedAdapterDoesNotCaptureOrEmitEvidence() throws {
         #expect(AtlasQualification.evidenceCaseFor(armed: false, pairs: try pairs(), axis: axis,
             binarySHA256: String(repeating: "a", count: 64), traceID: "unarmed") == nil)
