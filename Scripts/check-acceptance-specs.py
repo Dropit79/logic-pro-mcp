@@ -91,8 +91,8 @@ def _path_selector_strings(path: str, at: str):
     """Only string values in selectors; the verifier parses keys and syntax separately."""
     _, segments = parse_path(path)
     for segment in segments:
-        if segment[0] == "select" and isinstance(segment[2], str):
-            yield at, segment[2]
+        if segment[0] == "select":
+            yield from _string_values(segment[2], f"{at}.{segment[1]}")
 
 
 def scoped_strings(spec: dict):

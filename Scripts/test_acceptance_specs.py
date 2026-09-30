@@ -171,6 +171,13 @@ class Guard(unittest.TestCase):
         self._refused(self._tree({PILOT: spec}), "expect[3].path", "'Mixer'",
                       "as a literal")
 
+    def test_a_label_literal_nested_in_a_selector_value_is_refused(self):
+        spec = _pilot()
+        spec["rows"][0]["expect"][3]["path"] = \
+            'post.rows[meta={"label":"Mixer"}].isArmed'
+        self._refused(self._tree({PILOT: spec}), "expect[3].path.meta.label", "'Mixer'",
+                      "as a literal")
+
     def test_a_label_literal_in_a_restore_expectation_selector_is_refused(self):
         spec = _pilot()
         spec["rows"][0]["restore_expect"][0]["path"] = \
@@ -198,7 +205,8 @@ class Guard(unittest.TestCase):
 
     def test_path_keys_and_non_label_selectors_pass(self):
         spec = _pilot()
-        spec["rows"][0]["expect"][3]["path"] = 'post.Mixer.rows[id=15].isArmed'
+        spec["rows"][0]["expect"][3]["path"] = \
+            'post.Mixer.rows[id=15][meta={"Mixer":{"inner":"neutral"}}].isArmed'
         code, out = self._run(self._tree({PILOT: spec}))
         self.assertEqual(code, 0, out[-1500:])
 
