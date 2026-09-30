@@ -3482,6 +3482,24 @@ extension AccessibilityChannel {
                     ]) { _, new in new }
                 ))
             }
+            // A delivered press may have changed this toggle before AX reports its new value.
+            // AXConfirm or a later channel could turn Play/Record back again. Only an action
+            // that reported no delivery may advance to the next strategy.
+            let observed = controlBarCheckboxValue(cb, runtime: runtime)
+            return .error(HonestContract.encodeStateC(
+                error: .readbackMismatch,
+                hint: "control-bar checkbox '\(english)' did not read as desired=\(desired) after \(strategy.name). "
+                    + "The press was delivered and may have landed with the readback lagging; "
+                    + "read the control before retrying.",
+                extras: baseExtras.merging([
+                    "observed": observed as Any? ?? NSNull(),
+                    "action": strategy.name,
+                    "attempts": attempts,
+                    "write_attempted": true,
+                    "safe_to_retry": false,
+                    "fallback_unsafe": true
+                ]) { _, new in new }
+            ))
         }
 
         let observed = controlBarCheckboxValue(cb, runtime: runtime) as Any
