@@ -16,12 +16,13 @@ with one while nothing notices until a live run is attempted on it:
   3. A UI label written as a literal where the verifier sends or compares it. A spec runs in every
      locale it names, and a label only one language spells that way passes in that language alone.
      The scope is the string values under `steps[].call.params`, `restore[].call.params`,
-     `expect[].value`, `restore_expect[].value` and `wait.until.value` -- where a string is sent to
-     the product or compared with a reading. A string elsewhere is not checked: a `command` such as
-     `arm`, an `as` binding such as `undo`, a probe argument key such as `name`, a source quote and a
-     `matches_canon` ref quote are all words, not labels aimed at Logic's UI. A value is compared by
-     `strip().lower()` against `locale_labels.localised_canonicals()`, the canonicals the policy
-     already knows another language spells differently.
+     `expect[].value`, `restore_expect[].value` and `wait.until.value`, plus string selector values
+     in expectation, observation reference and wait paths -- where a string is sent to the product
+     or compared with a reading. Path keys and syntax are not labels. A string elsewhere is not
+     checked: a `command` such as `arm`, an `as` binding such as `undo`, a probe argument key such as
+     `name`, a source quote and a `matches_canon` ref quote are all words, not labels aimed at Logic's
+     UI. A value is compared by `strip().lower()` against `locale_labels.localised_canonicals()`, the
+     canonicals the policy already knows another language spells differently.
 
 Only `*.json` directly in the spec directory is a spec; `evidence/` is never scanned.
 
@@ -39,6 +40,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "Scripts"))
 
 from locale_labels import localised_canonicals  # noqa: E402
+from verify.predicates import parse_path  # noqa: E402
 
 VERIFY = os.path.join(REPO, "Scripts", "verify", "verify.py")
 
@@ -85,6 +87,14 @@ def _string_values(value, at: str):
             yield from _string_values(item, f"{at}[{i}]")
 
 
+def _path_selector_strings(path: str, at: str):
+    """Only string values in selectors; the verifier parses keys and syntax separately."""
+    _, segments = parse_path(path)
+    for segment in segments:
+        if segment[0] == "select" and isinstance(segment[2], str):
+            yield at, segment[2]
+
+
 def scoped_strings(spec: dict):
     """(where, text) for the strings a spec sends to the product or compares with a reading."""
     for row in spec["rows"]:
@@ -96,13 +106,20 @@ def scoped_strings(spec: dict):
                                               f"{base}.{key}[{i}].call.params")
                 if "wait" in step:
                     until = step["wait"].get("until") or {}
+                    joiner = "" if until["path"].startswith("[") else "."
+                    yield from _path_selector_strings(step["as"] + joiner + until["path"],
+                                                      f"{base}.{key}[{i}].wait.until.path")
                     if "value" in until:
                         yield from _string_values(until["value"],
                                                   f"{base}.{key}[{i}].wait.until.value")
         for key in EXPECT_SCOPES:
             for i, expectation in enumerate(row.get(key) or []):
+                at = f"{base}.{key}[{i}]"
+                yield from _path_selector_strings(expectation["path"], f"{at}.path")
+                if "ref" in expectation and "obs" in expectation["ref"]:
+                    yield from _path_selector_strings(expectation["ref"]["obs"], f"{at}.ref.obs")
                 if "value" in expectation:
-                    yield from _string_values(expectation["value"], f"{base}.{key}[{i}].value")
+                    yield from _string_values(expectation["value"], f"{at}.value")
 
 
 def label_problems(spec: dict, canonicals: dict) -> list:

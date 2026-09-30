@@ -165,6 +165,43 @@ class Guard(unittest.TestCase):
             "timeout_ms": 1000, "interval_ms": 100}})
         self._refused(self._tree({PILOT: spec}), "wait.until.value", "as a literal")
 
+    def test_a_label_literal_in_an_expectation_selector_is_refused(self):
+        spec = _pilot()
+        spec["rows"][0]["expect"][3]["path"] = 'post.rows[name="Mixer"].isArmed'
+        self._refused(self._tree({PILOT: spec}), "expect[3].path", "'Mixer'",
+                      "as a literal")
+
+    def test_a_label_literal_in_a_restore_expectation_selector_is_refused(self):
+        spec = _pilot()
+        spec["rows"][0]["restore_expect"][0]["path"] = \
+            'restored.rows[name="Mixer"].isArmed'
+        self._refused(self._tree({PILOT: spec}), "restore_expect[0].path", "'Mixer'",
+                      "as a literal")
+
+    def test_a_label_literal_in_a_wait_selector_is_refused(self):
+        spec = _pilot()
+        steps = spec["rows"][0]["steps"]
+        probe = copy.deepcopy(steps[-1]["probe"])
+        steps.append({"as": "settled", "wait": {
+            "probe": probe, "until": {"path": 'rows[name="Mixer"].isArmed',
+                              "op": "eq", "value": True},
+            "timeout_ms": 1000, "interval_ms": 100}})
+        self._refused(self._tree({PILOT: spec}), "wait.until.path", "'Mixer'",
+                      "as a literal")
+
+    def test_a_label_literal_in_an_observation_reference_selector_is_refused(self):
+        spec = _pilot()
+        spec["rows"][0]["restore_expect"][0]["ref"]["obs"] = \
+            'pre.rows[name="Mixer"].isArmed'
+        self._refused(self._tree({PILOT: spec}), "restore_expect[0].ref.obs", "'Mixer'",
+                      "as a literal")
+
+    def test_path_keys_and_non_label_selectors_pass(self):
+        spec = _pilot()
+        spec["rows"][0]["expect"][3]["path"] = 'post.Mixer.rows[id=15].isArmed'
+        code, out = self._run(self._tree({PILOT: spec}))
+        self.assertEqual(code, 0, out[-1500:])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
