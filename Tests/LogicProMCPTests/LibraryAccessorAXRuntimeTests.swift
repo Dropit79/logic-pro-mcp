@@ -308,6 +308,40 @@ private func makeLibraryPanelFixture(
     #expect(clicks.points().count == 1)
 }
 
+@Test func libraryAccessorCategoryDoesNotClickWhenAXSelectionSlidTheColumn() {
+    // A one-column-wide Library slides the moment the category is selected
+    // over AX (measured on Logic 12.3.1: Synthesizer x=0 → x=-227 before any
+    // click). The row now under the old point belongs to the next column, so
+    // clicking there opens the wrong subfolder.
+    let fixture = makeLibraryPanelFixture()
+    let bass = fixture.builder.element(10_005)
+    let clicks = LibraryClickRecorder()
+    let runtime = fixture.builder.makeLogicRuntime(
+        appElement: fixture.app,
+        setAttributeHandler: nil,
+        performActionHandler: { element, action in
+            if CFEqual(element, bass), action == kAXPressAction as String {
+                fixture.builder.setAttribute(bass, kAXPositionAttribute as String, libraryAXPoint(-127, 100))
+            }
+            return true
+        }
+    )
+    let library = LibraryAccessor.Runtime(
+        ax: runtime.ax,
+        postMouseClick: { point in
+            clicks.record(point)
+        },
+        postMouseDoubleClick: { _ in false }
+    )
+
+    #expect(LibraryAccessor.selectCategory(
+        named: "Bass",
+        runtime: runtime,
+        library: library
+    ))
+    #expect(clicks.points().isEmpty)
+}
+
 @Test func libraryAccessorCategoryResetsHorizontalBrowserScrollBeforeSelection() {
     let fixture = makeLibraryPanelFixture()
 

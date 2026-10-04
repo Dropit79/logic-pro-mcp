@@ -718,15 +718,25 @@ enum LibraryAccessor {
             )
         }
         let pressOK = AXHelpers.performAction(targetEl, kAXPressAction, runtime: runtime.ax)
+        // When the Library is one column wide, the AX selection above already
+        // slides the finder view: the category row moves off-screen and the
+        // next column's row takes its place. A click at the old point would
+        // land on that row instead (Synthesizer → Synthesizer/Strings), so the
+        // click is only sent while the row is still where it was measured.
+        let slidAway = targetPoint != nil
+            && position(of: targetEl, runtime: runtime.ax) != targetPoint
         let clicked: Bool
-        if let pos = targetPoint {
+        if slidAway {
+            debugLibraryClick("selectCategory name=\(name) slid after AX selection; click skipped")
+            clicked = false
+        } else if let pos = targetPoint {
             debugLibraryClick("selectCategory name=\(name) frame=\(String(describing: targetFrame)) point=\(pos)")
             clicked = library.postMouseClick(pos)
         } else {
             clicked = false
         }
         Thread.sleep(forTimeInterval: 0.30)
-        return clicked || selectedChildrenOK || pressOK
+        return clicked || slidAway || selectedChildrenOK || pressOK
     }
 
     @discardableResult
