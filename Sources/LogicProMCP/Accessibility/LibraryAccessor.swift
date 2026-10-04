@@ -725,8 +725,11 @@ enum LibraryAccessor {
         // click is only sent while the row is still where it was measured.
         // The folder names are Library.bundle's LocalizableFolderNames.strings rows:
         // logic-canon://strings/Contents%2FResources%2FLibrary.bundle%2FContentDatabaseV01.db%2FLocalizableFolderNames.strings/en/Synthesizer#value
+        // en: "Synthesizer"
         // logic-canon://strings/Contents%2FResources%2FLibrary.bundle%2FContentDatabaseV01.db%2FLocalizableFolderNames.strings/en/Pad#value
+        // en: "Pad"
         // logic-canon://strings/Contents%2FResources%2FLibrary.bundle%2FContentDatabaseV01.db%2FLocalizableFolderNames.strings/en/Strings#value
+        // en: "Strings"
         let slidAway = targetPoint != nil
             && position(of: targetEl, runtime: runtime.ax) != targetPoint
         let clicked: Bool
