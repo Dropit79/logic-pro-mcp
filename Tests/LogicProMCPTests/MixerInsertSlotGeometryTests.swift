@@ -218,6 +218,56 @@ private func decode(_ message: String) -> [String: Any] {
     #expect(read.allSatisfy { $0.readStatus == .unclassified })
 }
 
+@Test(arguments: [AXError.failure.rawValue, AXError.cannotComplete.rawValue])
+func aFailedMidiHelpReadDoesNotTurnAnInstrumentIntoAnAudioInsert(_ status: Int32) {
+    let b = FakeAXRuntimeBuilder()
+    let strip = MeasuredStrip(b)
+    let runtime = b.makeAXRuntime(
+        attributeValueHandler: { element, attribute in
+            if CFEqual(element, strip.midiSlot), attribute == kAXHelpAttribute as String {
+                return .some(nil)
+            }
+            return nil
+        },
+        attributeValueResultHandler: { element, attribute in
+            if CFEqual(element, strip.midiSlot), attribute == kAXHelpAttribute as String {
+                return .failure(AXHelpers.AXStatusError(raw: status))
+            }
+            return nil
+        },
+        setAttributeHandler: nil, performActionHandler: nil
+    )
+    let read = AXLogicProElements.audioPluginInsertSlots(children: strip.axOrder, runtime: runtime)
+    #expect(!read.isEmpty)
+    #expect(read.allSatisfy { $0.readStatus == .unclassified })
+    #expect(!AccessibilityChannel.pluginInventoryItems(for: read).complete)
+}
+
+@Test func malformedMidiHelpDoesNotTurnAnInstrumentIntoAnAudioInsert() {
+    let b = FakeAXRuntimeBuilder()
+    let strip = MeasuredStrip(b)
+    b.setAttribute(strip.midiSlot, kAXHelpAttribute as String, NSNumber(value: 0))
+    let read = slots(strip.axOrder, b)
+    #expect(read.allSatisfy { $0.readStatus == .unclassified })
+    #expect(!AccessibilityChannel.pluginInventoryItems(for: read).complete)
+}
+
+@Test(arguments: [AXError.attributeUnsupported.rawValue, AXError.noValue.rawValue])
+func definitiveHelpAbsenceDoesNotRefuseAnAudioStrip(_ status: Int32) {
+    let b = FakeAXRuntimeBuilder()
+    let lower = occupied(b, 890, "Compressor", y: 420)
+    let upper = occupied(b, 891, "Channel EQ", y: 400)
+    let runtime = b.makeAXRuntime(
+        attributeValueResultHandler: { _, attribute in
+            attribute == kAXHelpAttribute as String ? .failure(AXHelpers.AXStatusError(raw: status)) : nil
+        },
+        setAttributeHandler: nil, performActionHandler: nil
+    )
+    let read = AXLogicProElements.audioPluginInsertSlots(children: [lower, upper], runtime: runtime)
+    #expect(read.map(\.name) == ["Channel EQ", "Compressor"])
+    #expect(read.allSatisfy { $0.readStatus == .occupiedReadable })
+}
+
 @Test func twoSlotsAtTheSameHeightLeaveTheStripUnclassified() {
     let b = FakeAXRuntimeBuilder()
     let first = occupied(b, 840, "Gain", y: 400)
@@ -226,6 +276,23 @@ private func decode(_ message: String) -> [String: Any] {
     let read = slots([first, second], b)
 
     #expect(read.allSatisfy { $0.readStatus == .unclassified })
+}
+
+@Test(arguments: ["nan-position", "infinite-position", "zero-width", "negative-height"])
+func invalidMultiSlotGeometryIsNotAnAddressableOrder(_ caseName: String) {
+    let b = FakeAXRuntimeBuilder()
+    let upper = occupied(b, 842, "Gain", y: 400)
+    let lower = occupied(b, 843, "Compressor", y: 420)
+    switch caseName {
+    case "nan-position": b.setAttribute(lower, kAXPositionAttribute as String, axPoint(.nan, 420))
+    case "infinite-position": b.setAttribute(lower, kAXPositionAttribute as String, axPoint(738, .infinity))
+    case "zero-width": b.setAttribute(lower, kAXSizeAttribute as String, axSize(0, 16))
+    default: b.setAttribute(lower, kAXSizeAttribute as String, axSize(58, -16))
+    }
+    let read = slots([lower, upper], b)
+    #expect(!read.isEmpty)
+    #expect(read.allSatisfy { $0.readStatus == .unclassified })
+    #expect(!AccessibilityChannel.pluginInventoryItems(for: read).complete)
 }
 
 @Test func aStripWithoutAMidiSlotIsOnlySortedByScreenPosition() {

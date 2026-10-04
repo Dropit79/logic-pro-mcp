@@ -188,9 +188,26 @@ extension AXLogicProElements {
         children: [AXUIElement],
         runtime: AXHelpers.Runtime
     ) -> MIDIEffectSlotReading {
-        let slots = children.filter { child in
-            AXHelpers.getHelp(child, runtime: runtime)
-                .map { AXLocalePolicy.midiEffectSlotHelpKeyword.containsAny(in: $0) } ?? false
+        var slots: [AXUIElement] = []
+        for child in children {
+            let reading: Result<AnyObject?, AXHelpers.AXStatusError> = AXHelpers.getAttributeResult(
+                child, kAXHelpAttribute as String, runtime: runtime
+            )
+            switch reading {
+            case .success(nil):
+                continue
+            case .success(let value?):
+                guard let help = value as? String else { return .unreadable }
+                if AXLocalePolicy.midiEffectSlotHelpKeyword.containsAny(in: help) {
+                    slots.append(child)
+                }
+            case .failure(let error) where error.isDefinitiveAbsence:
+                continue
+            case .failure:
+                // A failed observation cannot establish that there is no MIDI
+                // slot; treating it as absent would expose the instrument as FX.
+                return .unreadable
+            }
         }
         guard !slots.isEmpty else { return .absent }
         guard slots.count == 1, let frame = elementFrame(slots[0], runtime: runtime) else { return .unreadable }
@@ -212,10 +229,15 @@ extension AXLogicProElements {
 
     private static func elementFrame(_ element: AXUIElement, runtime: AXHelpers.Runtime) -> CGRect? {
         guard let position = AXHelpers.getPosition(element, runtime: runtime),
-              let size = AXHelpers.getSize(element, runtime: runtime) else {
+              let size = AXHelpers.getSize(element, runtime: runtime),
+              position.x.isFinite, position.y.isFinite,
+              size.width.isFinite, size.height.isFinite,
+              size.width > 0, size.height > 0 else {
             return nil
         }
-        return CGRect(origin: position, size: size)
+        let frame = CGRect(origin: position, size: size)
+        guard frame.maxX.isFinite, frame.maxY.isFinite else { return nil }
+        return frame
     }
 
     // internal (not private): called cross-file from the +Mixer extension (WS3 AC1 split).
