@@ -47,7 +47,7 @@ private func stateOf(_ result: ChannelResult) -> (state: String?, json: [String:
     return (json["state"] as? String, json)
 }
 
-@Test func renameTypingStopsWhereTheFocusLeavesTheFieldAndPostsNothingAfter() {
+@Test func renameTypingStopsWhereTheFocusLeavesTheFieldAndPostsNothingAfter() throws {
     let recorder = RenameKeyRecorder()
 
     let outcome = AccessibilityChannel.typeRenameName(
@@ -72,10 +72,11 @@ private func stateOf(_ result: ChannelResult) -> (state: String?, json: [String:
     #expect(json["precondition"] as? String == "text_focus_lost")
     #expect(json["sent_code_units"] as? Int == 5)
     #expect(json["observed"] as? String == "MCP T")
-    #expect(json["write_attempted"] as? Bool == true)
+    let attempted = try #require(json["write_attempted"] as? Bool)
+    #expect(attempted)
 }
 
-@Test func renameTypingPostsNothingWhenTheFieldNeverTakesTheFocus() {
+@Test func renameTypingPostsNothingWhenTheFieldNeverTakesTheFocus() throws {
     let recorder = RenameKeyRecorder()
 
     let outcome = AccessibilityChannel.typeRenameName(
@@ -99,7 +100,8 @@ private func stateOf(_ result: ChannelResult) -> (state: String?, json: [String:
     #expect(state == "C")
     #expect(json["precondition"] as? String == "text_focus_not_reached")
     #expect(json["sent_code_units"] as? Int == 0)
-    #expect(json["write_attempted"] as? Bool == false)
+    let notAttempted = try #require(json["write_attempted"] as? Bool)
+    #expect(!notAttempted)
 }
 
 @Test func renameTypingWaitsForTheFieldThenTypesTheWholeNameAndOneReturn() {
