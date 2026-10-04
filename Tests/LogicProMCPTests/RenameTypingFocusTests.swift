@@ -17,11 +17,14 @@ private final class RenameKeyRecorder: @unchecked Sendable {
     var sleeps: [useconds_t] = []
     /// When set, the post of the code unit at this position fails and nothing is recorded for it.
     var failingPost: Int?
+    /// When set, posting this key code fails and nothing is recorded for it.
+    var failingKey: CGKeyCode?
 
     func runtime() -> AXMouseHelper.Runtime {
         AXMouseHelper.Runtime(
             postMouseEvent: { _, _, _ in true },
             postKeyEvent: { keyCode in
+                if keyCode == self.failingKey { return false }
                 self.keyEvents.append(keyCode)
                 return true
             },
@@ -176,6 +179,48 @@ private func stateOf(_ result: ChannelResult) -> (state: String?, json: [String:
     #expect(outcome == .textFocusLost(sentCodeUnits: 8, focus: .notTextEditing))
     #expect(recorder.typed == "MCP Test")
     #expect(recorder.keyEvents.isEmpty)
+}
+
+@Test(arguments: AccessibilityChannel.LogicKeyboardFocus.UnreadableStage.allCases)
+func anUnreadableFocusWhileWaitingStopsAtOnceEvenIfTheFieldWouldTakeIt(
+    stage: AccessibilityChannel.LogicKeyboardFocus.UnreadableStage
+) {
+    // #1103 review R2, F1: the wait retried an unreadable reading, so unreadable then a text field
+    // typed the whole name and Return.
+    let recorder = RenameKeyRecorder()
+    var readings: [AccessibilityChannel.LogicKeyboardFocus] = [.unreadable(stage), textField]
+
+    let outcome = AccessibilityChannel.typeRenameName(
+        "MCP Test",
+        focus: { readings.count > 1 ? readings.removeFirst() : readings[0] },
+        mouseRuntime: recorder.runtime(),
+        focusWaitAttempts: 5,
+        focusWaitMicros: 1
+    )
+
+    #expect(outcome == .textFocusNotReached(.unreadable(stage)))
+    #expect(recorder.unicodeEvents.isEmpty)
+    #expect(recorder.keyEvents.isEmpty)
+}
+
+@Test func aFailedReturnIsNotATypedName() throws {
+    // #1103 review R2, F2: the Return post's result was discarded.
+    let recorder = RenameKeyRecorder()
+    recorder.failingKey = returnKey
+
+    let outcome = AccessibilityChannel.typeRenameName(
+        "MCP Test", focus: { textField }, mouseRuntime: recorder.runtime()
+    )
+
+    #expect(outcome == .postFailed(sentCodeUnits: 8))
+    #expect(recorder.typed == "MCP Test")
+    #expect(recorder.keyEvents.isEmpty)
+    let (state, json) = stateOf(AccessibilityChannel.renameTypingFailure(
+        outcome, baseExtras: [:], observed: "Track 1"
+    ))
+    #expect(state == "C")
+    #expect(json["precondition"] as? String == "key_post_failed")
+    #expect(json["sent_code_units"] as? Int == 8)
 }
 
 @Test(arguments: AccessibilityChannel.LogicKeyboardFocus.UnreadableStage.allCases)

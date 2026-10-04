@@ -1872,8 +1872,8 @@ extension AccessibilityChannel {
         /// The focus left the text field after `sentCodeUnits`: nothing after it was posted,
         /// neither the rest of the name nor Return.
         case textFocusLost(sentCodeUnits: Int, focus: LogicKeyboardFocus)
-        /// Posting a code unit failed after `sentCodeUnits` were posted: nothing after it was
-        /// posted, neither the rest of the name nor Return.
+        /// Posting a code unit, or the confirming Return, failed after `sentCodeUnits` code units
+        /// were posted: nothing after it was posted.
         case postFailed(sentCodeUnits: Int)
     }
 
@@ -1904,9 +1904,13 @@ extension AccessibilityChannel {
             return false
         }
 
+        // Only a readable "not text editing" is waited out: the field takes a moment to take the
+        // focus after the menu item. A focus that cannot be read stops the rename at once, before
+        // anything is posted (#1102: "If the focus is lost, or cannot be read, the rename stops
+        // fail-closed"; #1103 review R2, F1: the wait retried an unreadable reading).
         var reading = focus()
         var attempt = 1
-        while !isTextEditing(reading) && attempt < focusWaitAttempts {
+        while case .notTextEditing = reading, attempt < focusWaitAttempts {
             mouseRuntime.sleepMicros(focusWaitMicros)
             reading = focus()
             attempt += 1
@@ -1929,7 +1933,9 @@ extension AccessibilityChannel {
         guard isTextEditing(beforeReturn) else {
             return .textFocusLost(sentCodeUnits: sent, focus: beforeReturn)
         }
-        AXMouseHelper.pressReturn(runtime: mouseRuntime)
+        // The confirming Return is a post like the others: one that fails is not a typed name
+        // (#1103 review R2, F2).
+        guard mouseRuntime.postKeyEvent(0x24) else { return .postFailed(sentCodeUnits: sent) }
         return .typed
     }
 
