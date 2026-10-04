@@ -15,6 +15,8 @@ private final class RenameKeyRecorder: @unchecked Sendable {
     var keyEvents: [CGKeyCode] = []
     var unicodeEvents: [UniChar] = []
     var sleeps: [useconds_t] = []
+    /// When set, the post of the code unit at this position fails and nothing is recorded for it.
+    var failingPost: Int?
 
     func runtime() -> AXMouseHelper.Runtime {
         AXMouseHelper.Runtime(
@@ -24,6 +26,7 @@ private final class RenameKeyRecorder: @unchecked Sendable {
                 return true
             },
             postUnicodeScalar: { scalar in
+                if self.failingPost == self.unicodeEvents.count { return false }
                 self.unicodeEvents.append(scalar)
                 return true
             },
@@ -74,6 +77,30 @@ private func stateOf(_ result: ChannelResult) -> (state: String?, json: [String:
     #expect(json["observed"] as? String == "MCP T")
     let attempted = try #require(json["write_attempted"] as? Bool)
     #expect(attempted)
+}
+
+@Test func aFailedPostStopsTheTypingAndCountsOnlyThePostsThatWentThrough() throws {
+    // #1103 review R2: the count was taken before each post, so a post that failed was counted.
+    let recorder = RenameKeyRecorder()
+    recorder.failingPost = 2
+
+    let outcome = AccessibilityChannel.typeRenameName(
+        "MCP Test", focus: { textField }, mouseRuntime: recorder.runtime()
+    )
+
+    #expect(outcome == .postFailed(sentCodeUnits: 2))
+    #expect(recorder.typed == "MC")
+    #expect(recorder.keyEvents.isEmpty)
+
+    let result = AccessibilityChannel.renameTypingFailure(
+        outcome, baseExtras: ["track": 3, "requested": "MCP Test"], observed: "MC"
+    )
+    let (state, json) = stateOf(result)
+    #expect(state == "C")
+    #expect(json["error"] as? String == "ax_write_failed")
+    #expect(json["precondition"] as? String == "key_post_failed")
+    #expect(json["sent_code_units"] as? Int == 2)
+    #expect(json["keyboard_focus"] is NSNull)
 }
 
 @Test func renameTypingPostsNothingWhenTheFieldNeverTakesTheFocus() throws {

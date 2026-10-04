@@ -1872,6 +1872,9 @@ extension AccessibilityChannel {
         /// The focus left the text field after `sentCodeUnits`: nothing after it was posted,
         /// neither the rest of the name nor Return.
         case textFocusLost(sentCodeUnits: Int, focus: LogicKeyboardFocus)
+        /// Posting a code unit failed after `sentCodeUnits` were posted: nothing after it was
+        /// posted, neither the rest of the name nor Return.
+        case postFailed(sentCodeUnits: Int)
     }
 
     /// The menu item that opens the field, by its pinned row:
@@ -1910,19 +1913,15 @@ extension AccessibilityChannel {
         }
         guard isTextEditing(reading) else { return .textFocusNotReached(reading) }
 
+        // `sent` counts posts that went through, not attempts (#1103 review R2): a post that
+        // fails stops the typing and is reported as itself, not as focus loss.
         var sent = 0
-        var lostTo: LogicKeyboardFocus?
-        let completed = AXMouseHelper.typeText(name, runtime: mouseRuntime, isCancelled: {
+        for codeUnit in name.utf16 {
             let now = focus()
-            guard isTextEditing(now) else {
-                lostTo = now
-                return true
-            }
+            guard isTextEditing(now) else { return .textFocusLost(sentCodeUnits: sent, focus: now) }
+            guard mouseRuntime.postUnicodeScalar(codeUnit) else { return .postFailed(sentCodeUnits: sent) }
             sent += 1
-            return false
-        })
-        guard completed else {
-            return .textFocusLost(sentCodeUnits: sent, focus: lostTo ?? .notTextEditing)
+            mouseRuntime.sleepMicros(12_000)
         }
 
         mouseRuntime.sleepMicros(50_000)
@@ -1952,7 +1951,8 @@ extension AccessibilityChannel {
         let precondition: String
         let hint: String
         let sent: Int
-        let reading: LogicKeyboardFocus
+        let reading: LogicKeyboardFocus?
+        var error = HonestContract.FailureError.unsafeFocusForSyntheticKey
         switch outcome {
         case .typed:
             return .error(HonestContract.encodeStateC(
@@ -1974,15 +1974,23 @@ extension AccessibilityChannel {
                 + "typing stopped and no Return or Escape was posted, so the rest of the name did "
                 + "not reach Logic as key commands. The field may still be open; `observed` is the "
                 + "name read afterwards."
+        case .postFailed(let count):
+            precondition = "key_post_failed"
+            sent = count
+            reading = nil
+            error = .axWriteFailed
+            hint = "posting a key to Logic failed after \(count) code unit(s) — typing stopped and no "
+                + "Return or Escape was posted. The field may still be open; `observed` is the name "
+                + "read afterwards."
         }
         return .error(HonestContract.encodeStateC(
-            error: .unsafeFocusForSyntheticKey,
+            error: error,
             hint: hint,
             extras: baseExtras.merging([
                 "via": "track_menu",
                 "precondition": precondition,
                 "sent_code_units": sent,
-                "keyboard_focus": describe(reading),
+                "keyboard_focus": reading.map(describe) as Any? ?? NSNull(),
                 "observed": observed as Any? ?? NSNull(),
                 "write_attempted": sent > 0
             ]) { _, new in new }
