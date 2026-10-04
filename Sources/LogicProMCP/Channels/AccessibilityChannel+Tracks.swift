@@ -1874,6 +1874,10 @@ extension AccessibilityChannel {
         case textFocusLost(sentCodeUnits: Int, focus: LogicKeyboardFocus)
     }
 
+    /// The menu item that opens the field, by its pinned row:
+    /// logic-canon://strings/Contents%2FFrameworks%2FLogic.framework%2FVersions%2FA%2FResources%2FLocalizable.strings/en/Rename%20Track#value
+    /// en: "Rename Track"
+    ///
     /// Types `name` into the rename field Track > Rename Track opened, one code unit at a time,
     /// and only while Logic's keyboard focus reads as text editing (`readLogicKeyboardFocus`, the
     /// rule the key-command guard and the #1079 poll yield use).
