@@ -534,7 +534,7 @@ func testGetInventoryStateAImpliesNonEmptyPlugins(_ slotCount: Int) async {
     #expect(plugins.count >= 1, "State A always carries >= 1 enumerated slot")
 }
 
-@Test func testGetInventoryOverFull123WindowFixture() async {
+@Test func testGetInventoryOverFull123WindowFixture() async throws {
     // The full 12.3 window (outer wrapper + toolbar sibling + nested layout area)
     // with the live-dump strip: an empty audio row under the `E-Piano` instrument slot. Driving
     // get_inventory with revealMixer wired to the REAL selection proves the toolbar no longer
@@ -553,7 +553,8 @@ func testGetInventoryStateAImpliesNonEmptyPlugins(_ slotCount: Int) async {
     #expect(obj["state"] as? String == "A")
     #expect(obj["plugins_unknown_reason"] is NSNull)
     let plugins = obj["plugins"] as! [[String: Any]]
-    #expect(obj["complete"] as? Bool == true)
+    let complete = try #require(obj["complete"] as? Bool)
+    #expect(complete)
     #expect(plugins.count == 1)
     #expect(plugins.map { $0["insert"] as? Int } == [0])
     #expect(plugins.first?["read_status"] as? String == "empty")

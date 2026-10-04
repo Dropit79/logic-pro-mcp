@@ -309,7 +309,7 @@ func invalidMultiSlotGeometryIsNotAnAddressableOrder(_ caseName: String) {
 
 // MARK: - get_inventory, logic://mixer and the write paths
 
-@Test func getInventoryNumbersTheMeasuredStripTopDownAndIsComplete() async {
+@Test func getInventoryNumbersTheMeasuredStripTopDownAndIsComplete() async throws {
     let b = FakeAXRuntimeBuilder()
     let runtime = mixerRuntime(b, stripChildren: MeasuredStrip(b).axOrder)
 
@@ -320,7 +320,8 @@ func invalidMultiSlotGeometryIsNotAnAddressableOrder(_ caseName: String) {
     let obj = decode(result.message)
     let plugins = obj["plugins"] as? [[String: Any]] ?? []
 
-    #expect(obj["complete"] as? Bool == true)
+    let complete = try #require(obj["complete"] as? Bool)
+    #expect(complete)
     #expect(plugins.map { $0["insert"] as? Int } == [0, 1, 2])
     #expect(plugins.map { $0["name"] as? String } == ["Channel EQ", "Compressor", "ChromaVerb"])
     #expect(plugins.map { $0["plugin_id"] as? String }
@@ -328,7 +329,7 @@ func invalidMultiSlotGeometryIsNotAnAddressableOrder(_ caseName: String) {
     #expect(!plugins.contains { $0["read_status"] as? String == "empty" })
 }
 
-@Test func getInventoryOfAnUnclassifiedStripIsIncomplete() async {
+@Test func getInventoryOfAnUnclassifiedStripIsIncomplete() async throws {
     let b = FakeAXRuntimeBuilder()
     let strip = MeasuredStrip(b)
     let runtime = mixerRuntime(b, stripChildren: strip.axOrder + [separator(b, 860, y: 626)])
@@ -340,7 +341,8 @@ func invalidMultiSlotGeometryIsNotAnAddressableOrder(_ caseName: String) {
     let obj = decode(result.message)
     let plugins = obj["plugins"] as? [[String: Any]] ?? []
 
-    #expect(obj["complete"] as? Bool == false)
+    let complete = try #require(obj["complete"] as? Bool)
+    #expect(!complete)
     #expect(!plugins.isEmpty)
     #expect(plugins.allSatisfy { $0["read_status"] as? String == "unclassified" })
     #expect(plugins.allSatisfy { $0["plugin_id"] is NSNull })
@@ -366,7 +368,7 @@ func invalidMultiSlotGeometryIsNotAnAddressableOrder(_ caseName: String) {
     #expect(AXLogicProElements.pluginSlots(in: strip, runtime: b.makeAXRuntime()) == nil)
 }
 
-@Test func insertVerifiedRefusesAnUnclassifiedStripBeforeAnyWrite() async {
+@Test func insertVerifiedRefusesAnUnclassifiedStripBeforeAnyWrite() async throws {
     let b = FakeAXRuntimeBuilder()
     let measured = MeasuredStrip(b)
     let runtime = mixerRuntime(b, stripChildren: measured.axOrder + [separator(b, 880, y: 626)])
@@ -390,6 +392,7 @@ func invalidMultiSlotGeometryIsNotAnAddressableOrder(_ caseName: String) {
 
     #expect(!result.isSuccess)
     #expect(obj["state"] as? String == "C")
-    #expect(obj["write_attempted"] as? Bool == false)
+    let writeAttempted = try #require(obj["write_attempted"] as? Bool)
+    #expect(!writeAttempted)
     #expect(b.actionCalls.isEmpty)
 }
